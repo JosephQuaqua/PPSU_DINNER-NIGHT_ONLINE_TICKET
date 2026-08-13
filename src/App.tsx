@@ -51,17 +51,19 @@ export default function App() {
           <Route path="/dashboard/bookings/:id/payment" element={<PaymentPage />} />
           <Route path="/dashboard/tickets/:id" element={<TicketPage />} />
           <Route path="/dashboard/profile" element={<ProfilePage />} />
-          <Route element={<AdminRoute />}>
-            <Route path="/admin" element={<AdminDashboardPage />} />
-            <Route path="/admin/events" element={<AdminEventsPage />} />
-            <Route path="/admin/bookings" element={<AdminBookingsPage />} />
-            <Route path="/admin/payments" element={<AdminPaymentsPage />} />
-            <Route path="/admin/attendees" element={<AdminAttendeesPage />} />
-            <Route path="/admin/check-ins" element={<AdminCheckInsPage />} />
-            <Route path="/admin/waitlists" element={<AdminWaitlistsPage />} />
-            <Route path="/admin/audit" element={<AdminAuditPage />} />
-            <Route path="/admin/settings" element={<AdminSettingsPage />} />
-          </Route>
+        </Route>
+      </Route>
+      <Route element={<ProtectedRoute />}>
+        <Route element={<AdminRoute />}>
+          <Route path="/admin" element={<AdminDashboardPage />} />
+          <Route path="/admin/events" element={<AdminEventsPage />} />
+          <Route path="/admin/bookings" element={<AdminBookingsPage />} />
+          <Route path="/admin/payments" element={<AdminPaymentsPage />} />
+          <Route path="/admin/attendees" element={<AdminAttendeesPage />} />
+          <Route path="/admin/check-ins" element={<AdminCheckInsPage />} />
+          <Route path="/admin/waitlists" element={<AdminWaitlistsPage />} />
+          <Route path="/admin/audit" element={<AdminAuditPage />} />
+          <Route path="/admin/settings" element={<AdminSettingsPage />} />
         </Route>
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
