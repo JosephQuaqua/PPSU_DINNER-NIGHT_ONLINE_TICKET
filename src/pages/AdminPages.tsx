@@ -27,9 +27,9 @@ function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-[#f3f1ed] text-navy-950">
       <aside
-  className={`fixed inset-y-0 left-0 z-40 flex w-72 flex-col bg-navy-950 p-6 text-white transition-transform lg:translate-x-0 ${
+  className={`fixed inset-y-0 left-0 z-50 flex w-72 flex-col bg-navy-950 p-6 text-white transition-transform duration-300 ${
     open ? 'translate-x-0' : '-translate-x-full'
-  }`}
+  } lg:translate-x-0`}
 >
   <div className="flex shrink-0 items-center justify-between">
     <Link to="/" className="flex items-center gap-3">
@@ -46,8 +46,9 @@ function AdminLayout({ children }: { children: React.ReactNode }) {
     </Link>
 
     <button
+      type="button"
       onClick={() => setOpen(false)}
-      className="lg:hidden"
+      className="rounded-lg p-2 text-white/60 transition hover:bg-white/10 hover:text-white lg:hidden"
       aria-label="Close navigation"
     >
       <X size={20} />
@@ -89,6 +90,7 @@ function AdminLayout({ children }: { children: React.ReactNode }) {
     </div>
 
     <button
+      type="button"
       onClick={() => {
         void signOut();
         nav('/');
@@ -100,6 +102,15 @@ function AdminLayout({ children }: { children: React.ReactNode }) {
     </button>
   </div>
 </aside>
+
+{open && (
+  <button
+    type="button"
+    aria-label="Close navigation"
+    onClick={() => setOpen(false)}
+    className="fixed inset-0 z-40 bg-navy-950/50 backdrop-blur-sm lg:hidden"
+  />
+)}
       <div className="lg:pl-72">
         <header className="sticky top-0 z-30 flex h-20 items-center justify-between border-b border-navy-950/8 bg-[#f3f1ed]/90 px-6 backdrop-blur-xl md:px-10">
           <button onClick={() => setOpen(true)} className="lg:hidden"><Menu size={22} /></button>
