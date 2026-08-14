@@ -113,43 +113,42 @@ export function TicketPage() {
       throw new Error('Could not generate ticket image.');
     }
 
-    const file = new File(
-      [blob],
-      `${t.ticket_number}.png`,
-      { type: 'image/png' }
-    );
+    const fileName = `${t.ticket_number}.png`;
 
-    // Mobile browsers: use the native share sheet when supported.
     if (
-      navigator.share &&
-      navigator.canShare &&
-      navigator.canShare({ files: [file] })
+      typeof navigator.share === 'function' &&
+      typeof navigator.canShare === 'function'
     ) {
-      await navigator.share({
-        title: `PPSU Events Ticket - ${t.ticket_number}`,
-        text: 'My PPSU Events digital ticket',
-        files: [file],
+      const file = new File([blob], fileName, {
+        type: 'image/png',
       });
 
-      return;
+      if (navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          title: `PPSU Events Ticket - ${t.ticket_number}`,
+          text: 'My PPSU Events digital ticket',
+          files: [file],
+        });
+
+        return;
+      }
     }
 
-    // Desktop / browsers that support normal Blob downloads
     const url = URL.createObjectURL(blob);
 
     const link = document.createElement('a');
     link.href = url;
-    link.download = `${t.ticket_number}.png`;
+    link.download = fileName;
+    link.style.display = 'none';
 
     document.body.appendChild(link);
     link.click();
-    link.remove();
+    document.body.removeChild(link);
 
     setTimeout(() => {
       URL.revokeObjectURL(url);
-    }, 1000);
+    }, 2000);
   } catch (error) {
-    // User closing the share sheet is not an application error.
     if ((error as Error)?.name === 'AbortError') {
       return;
     }
