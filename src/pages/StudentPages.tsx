@@ -68,21 +68,52 @@ export function TicketPage() {
 
   useEffect(() => {
     const loadAvatar = async () => {
-      if (!ticket?.b.user_id) return;
+  if (!ticket?.b.user_id) return;
 
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('avatar_url')
-        .eq('id', ticket.b.user_id)
-        .maybeSingle();
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('avatar_url')
+    .eq('id', ticket.b.user_id)
+    .maybeSingle();
 
-      if (error) {
-        console.error('PROFILE AVATAR ERROR:', error);
-        return;
-      }
+  if (error) {
+    console.error('PROFILE AVATAR ERROR:', error);
+    return;
+  }
 
-      setAvatarUrl(data?.avatar_url || null);
+  const avatar = data?.avatar_url;
+
+  if (!avatar) {
+    setAvatarUrl(null);
+    return;
+  }
+
+  try {
+    const response = await fetch(avatar, {
+      mode: 'cors',
+      cache: 'no-cache',
+    });
+
+    if (!response.ok) {
+      throw new Error(`Avatar request failed: ${response.status}`);
+    }
+
+    const blob = await response.blob();
+
+    const reader = new FileReader();
+
+    reader.onloadend = () => {
+      setAvatarUrl(reader.result as string);
     };
+
+    reader.readAsDataURL(blob);
+  } catch (error) {
+    console.error('AVATAR DATA URL ERROR:', error);
+
+    // Keep the normal avatar URL as a fallback
+    setAvatarUrl(avatar);
+  }
+};
 
     void loadAvatar();
   }, [ticket?.b.user_id]);
