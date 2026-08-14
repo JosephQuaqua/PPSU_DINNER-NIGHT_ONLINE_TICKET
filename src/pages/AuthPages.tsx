@@ -1,4 +1,5 @@
 import {
+  forwardRef,
   useState,
   type InputHTMLAttributes,
   type ReactNode,
@@ -135,37 +136,43 @@ type FieldProps = InputHTMLAttributes<HTMLInputElement> & {
   error?: string;
 };
 
-function Field({
-  label,
-  error,
-  ...inputProps
-}: FieldProps) {
-  return (
-    <label className="block">
+const Field = forwardRef<HTMLInputElement, FieldProps>(
+  function Field(
+    {
+      label,
+      error,
+      ...inputProps
+    },
+    ref,
+  ) {
+    return (
+      <label className="block">
 
-      <span className="mb-2 block text-sm font-semibold text-navy-950">
-        {label}
-      </span>
-
-      <input
-        {...inputProps}
-        className={`input-field ${
-          error
-            ? 'border-red-400 focus:border-red-500'
-            : ''
-        }`}
-      />
-
-      {error ? (
-        <span className="mt-1.5 block text-xs text-red-600">
-          {error}
+        <span className="mb-2 block text-sm font-semibold text-navy-950">
+          {label}
         </span>
-      ) : null}
 
-    </label>
-  );
-}
+        <input
+          {...inputProps}
+          ref={ref}
+          className={`input-field ${
+            error
+              ? 'border-red-400 focus:border-red-500'
+              : ''
+          }`}
+        />
 
+        {error ? (
+          <span className="mt-1.5 block text-xs text-red-600">
+            {error}
+          </span>
+        ) : null}
+
+      </label>
+    );
+  },
+);
+  
 
 /* =========================================================
    SIGN IN PAGE

@@ -962,7 +962,7 @@ export function AdminAttendeesPage() {
 }
 
 export function AdminCheckInsPage() {
-  const { user } = useAuth();
+  const { user, isStaff, isGateStaff } = useAuth();
   const client = useQueryClient();
 
   const [qrToken, setQrToken] = useState('');
@@ -1040,14 +1040,49 @@ export function AdminCheckInsPage() {
 
   const checkIn = async () => {
     if (!qrToken.trim() || !user) return;
+
+    console.log('CHECK-IN REQUEST', {
+      input: qrToken.trim(),
+      staffId: user.id,
+      isStaff,
+      isGateStaff,
+    });
+
     setBusy(true);
     setResult(null);
     const { data, error } = await supabase.rpc('check_in_ticket', { p_input: qrToken.trim(), p_staff_id: user.id });
     setBusy(false);
-    if (error || !data || data.length === 0) {
-      setResult({ success: false, ticket_number: '', attendee_name: '', event_title: '', message: 'Invalid ticket or unable to check in.' });
+
+    if (error) {
+      console.error('CHECK-IN RPC ERROR', {
+        message: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint,
+      });
+
+      setResult({
+        success: false,
+        ticket_number: '',
+        attendee_name: '',
+        event_title: '',
+        message: error.message || 'Unable to check in ticket.',
+      });
       return;
     }
+
+    if (!data || data.length === 0) {
+      console.error('CHECK-IN RPC EMPTY RESULT', { data, error });
+      setResult({
+        success: false,
+        ticket_number: '',
+        attendee_name: '',
+        event_title: '',
+        message: 'No ticket result returned from the check-in RPC.',
+      });
+      return;
+    }
+
     setResult(data[0]);
     setQrToken('');
     await client.invalidateQueries({ queryKey: ['admin-checkins'] });

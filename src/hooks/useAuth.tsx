@@ -77,11 +77,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  const signOut = async () => {
-    await supabase.auth.signOut();
+ const signOut = async () => {
+  try {
+    const { error } = await supabase.auth.signOut({
+      scope: 'local',
+    });
+
+    if (error) {
+      console.error('SIGN OUT ERROR:', error);
+    }
+  } finally {
+    setSession(null);
+    setUser(null);
     setProfile(null);
     setStaffRoles([]);
-  };
+  }
+};
 
   const isStaff = staffRoles.length > 0;
   const isAdmin = staffRoles.includes('super_admin') || staffRoles.includes('event_admin');
