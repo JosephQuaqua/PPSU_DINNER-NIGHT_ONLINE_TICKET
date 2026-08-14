@@ -996,18 +996,12 @@ export function AdminCheckInsPage() {
             fps: 10,
             qrbox: { width: 250, height: 250 },
           },
-          async (decodedText) => {
-            if (!scanner || cancelled) return;
+          (decodedText) => {
+  if (cancelled) return;
 
-            setQrToken(decodedText);
-            setScanning(false);
-
-            try {
-              await scanner.stop();
-            } catch {
-              // Scanner may already be stopped.
-            }
-          },
+  setQrToken(decodedText);
+  setScanning(false);
+},
           () => {
             // Ignore normal scanning failures while looking for a QR code.
           }
