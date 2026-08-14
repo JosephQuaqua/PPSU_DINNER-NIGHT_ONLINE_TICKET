@@ -4,7 +4,8 @@ import { ArrowLeft, ArrowRight, CalendarDays, Check, Clock3, CreditCard, Downloa
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { QRCodeSVG } from 'qrcode.react';
-import { toBlob } from 'html-to-image';
+import { toBlob, toPng } from 'html-to-image';
+import { jsPDF } from 'jspdf';
 import { useAuth } from '@/hooks/useAuth';
 import { useBooking, useCreateBooking, useMyBookings, useSubmitPaymentProof } from '@/hooks/useBookings';
 import { useEvent } from '@/hooks/useEvents';
@@ -94,70 +95,81 @@ export function TicketPage() {
     );
   }
 
-  const { t, b } = ticket;
+   const { t, b } = ticket;
   const event = b.events;
   const attendee = b.attendees?.find((a) => a.id === t.attendee_id);
 
   const downloadTicketImage = async () => {
-  const ticketElement = document.getElementById('printable-ticket');
+    const ticketElement = document.getElementById('printable-ticket');
 
-  if (!ticketElement) return;
-
-  try {
-    const blob = await toBlob(ticketElement, {
-      cacheBust: true,
-      pixelRatio: 2,
-    });
-
-    if (!blob) {
-      throw new Error('Could not generate ticket image.');
-    }
-
-    const fileName = `${t.ticket_number}.png`;
-
-    if (
-      typeof navigator.share === 'function' &&
-      typeof navigator.canShare === 'function'
-    ) {
-      const file = new File([blob], fileName, {
-        type: 'image/png',
-      });
-
-      if (navigator.canShare({ files: [file] })) {
-        await navigator.share({
-          title: `PPSU Events Ticket - ${t.ticket_number}`,
-          text: 'My PPSU Events digital ticket',
-          files: [file],
-        });
-
-        return;
-      }
-    }
-
-    const url = URL.createObjectURL(blob);
-
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = fileName;
-    link.style.display = 'none';
-
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-
-    setTimeout(() => {
-      URL.revokeObjectURL(url);
-    }, 2000);
-  } catch (error) {
-    if ((error as Error)?.name === 'AbortError') {
+    if (!ticketElement) {
+      console.error('Ticket element not found');
       return;
     }
 
-    console.error('TICKET IMAGE DOWNLOAD ERROR:', error);
-  }
-};
+    try {
+      const dataUrl = await toPng(ticketElement, {
+        pixelRatio: 2,
+        cacheBust: true,
+      });
 
-  
+      const link = document.createElement('a');
+      link.download = `PPSU-Ticket-${t.ticket_number}.png`;
+      link.href = dataUrl;
+      link.click();
+    } catch (error) {
+      console.error('TICKET IMAGE DOWNLOAD ERROR:', error);
+    }
+  };
+
+  const downloadTicketPDF = async () => {
+    const ticketElement = document.getElementById('printable-ticket');
+
+    if (!ticketElement) {
+      console.error('Ticket element not found');
+      return;
+    }
+
+    try {
+      const dataUrl = await toPng(ticketElement, {
+        pixelRatio: 2,
+        cacheBust: true,
+      });
+
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'px',
+        format: 'a4',
+      });
+
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+
+      const image = new Image();
+
+      image.onload = () => {
+        const ratio = Math.min(
+          (pdfWidth - 40) / image.width,
+          (pdfHeight - 40) / image.height
+        );
+
+        const width = image.width * ratio;
+        const height = image.height * ratio;
+
+        const x = (pdfWidth - width) / 2;
+        const y = (pdfHeight - height) / 2;
+
+        pdf.addImage(dataUrl, 'PNG', x, y, width, height);
+        pdf.save(`PPSU-Ticket-${t.ticket_number}.pdf`);
+      };
+
+      image.src = dataUrl;
+    } catch (error) {
+      console.error('TICKET PDF DOWNLOAD ERROR:', error);
+    }
+  };
+
+   
 
   return (
     <DashboardShell
@@ -257,12 +269,13 @@ export function TicketPage() {
 
        <div className="mt-6 grid gap-3 sm:grid-cols-2">
   <button
-    onClick={() => window.print()}
-    className="btn-primary w-full"
-  >
-    <Download size={16} />
-    Download PDF
-  </button>
+  type="button"
+  onClick={downloadTicketPDF}
+  className="btn-primary w-full"
+>
+  <Download size={16} />
+  Download PDF
+</button>
 
  <button
   type="button"
