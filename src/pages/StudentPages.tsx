@@ -99,28 +99,74 @@ export function TicketPage() {
   const event = b.events;
   const attendee = b.attendees?.find((a) => a.id === t.attendee_id);
 
-  const downloadTicketImage = async () => {
-    const ticketElement = document.getElementById('printable-ticket');
+const downloadTicketImage = async () => {
+  const ticketElement = document.getElementById('printable-ticket');
 
-    if (!ticketElement) {
-      console.error('Ticket element not found');
+  if (!ticketElement) {
+    console.error('Ticket element not found');
+    return;
+  }
+
+  try {
+    const dataUrl = await toPng(ticketElement, {
+      pixelRatio: 2,
+      cacheBust: true,
+      backgroundColor: '#FFFFFF',
+    });
+
+    // Mobile browsers often block programmatic downloads.
+    // Opening the generated image gives the user a reliable way
+    // to save it on iPhone/Android.
+    const isMobile =
+      /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+    if (isMobile) {
+      const newWindow = window.open();
+
+      if (newWindow) {
+        newWindow.document.write(`
+          <html>
+            <head>
+              <title>PPSU Ticket</title>
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <style>
+                body {
+                  margin: 0;
+                  padding: 20px;
+                  background: #f8f5f0;
+                  display: flex;
+                  justify-content: center;
+                  align-items: flex-start;
+                }
+
+                img {
+                  max-width: 100%;
+                  height: auto;
+                }
+              </style>
+            </head>
+            <body>
+              <img src="${dataUrl}" alt="PPSU Event Ticket">
+            </body>
+          </html>
+        `);
+
+        newWindow.document.close();
+      }
+
       return;
     }
 
-    try {
-      const dataUrl = await toPng(ticketElement, {
-        pixelRatio: 2,
-        cacheBust: true,
-      });
+    // Desktop download
+    const link = document.createElement('a');
+    link.download = `PPSU-Ticket-${t.ticket_number}.png`;
+    link.href = dataUrl;
+    link.click();
+  } catch (error) {
+    console.error('TICKET IMAGE DOWNLOAD ERROR:', error);
+  }
+};
 
-      const link = document.createElement('a');
-      link.download = `PPSU-Ticket-${t.ticket_number}.png`;
-      link.href = dataUrl;
-      link.click();
-    } catch (error) {
-      console.error('TICKET IMAGE DOWNLOAD ERROR:', error);
-    }
-  };
 
   const downloadTicketPDF = async () => {
     const ticketElement = document.getElementById('printable-ticket');
