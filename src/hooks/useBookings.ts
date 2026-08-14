@@ -1,6 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase/client';
-import type { BookingWithDetails, AttendeeRow, PaymentRow, TicketRow, EventRow } from '@/types/database';
+import type {
+  BookingWithDetails,
+  AttendeeRow,
+  PaymentRow,
+  TicketRow,
+  EventRow,
+  ProfileRow,
+} from '@/types/database';
 
 interface CreateBookingInput {
   eventId: string;
@@ -44,8 +51,35 @@ export function useMyBookings() {
         .from('bookings')
         .select('*, events(*), attendees(*), payments(*), tickets(*)')
         .order('created_at', { ascending: false });
+
       if (error) throw error;
-      return (data || []) as unknown as BookingWithDetails[];
+
+      const bookings = (data || []) as unknown as BookingWithDetails[];
+
+      const userIds = [...new Set(bookings.map((booking) => booking.user_id))];
+
+      if (userIds.length === 0) {
+        return bookings;
+      }
+
+      const { data: profiles, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .in('id', userIds);
+
+      if (profileError) throw profileError;
+
+      const profileMap = new Map(
+        ((profiles || []) as ProfileRow[]).map((profile) => [
+          profile.id,
+          profile,
+        ])
+      );
+
+      return bookings.map((booking) => ({
+        ...booking,
+        profile: profileMap.get(booking.user_id) || null,
+      }));
     },
   });
 }
@@ -60,8 +94,24 @@ export function useBooking(id: string | undefined) {
         .select('*, events(*), attendees(*), payments(*), tickets(*)')
         .eq('id', id as string)
         .maybeSingle();
+
       if (error) throw error;
-      return data as unknown as BookingWithDetails | null;
+      if (!data) return null;
+
+      const booking = data as unknown as BookingWithDetails;
+
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', booking.user_id)
+        .maybeSingle();
+
+      if (profileError) throw profileError;
+
+      return {
+        ...booking,
+        profile: profile as ProfileRow | null,
+      };
     },
   });
 }

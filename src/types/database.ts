@@ -156,6 +156,7 @@ export interface BookingWithDetails extends BookingRow {
   attendees?: AttendeeRow[];
   payments?: PaymentRow[];
   tickets?: TicketRow[];
+  profile?: ProfileRow | null;
 }
 
 export interface EventWithStats extends EventRow {
