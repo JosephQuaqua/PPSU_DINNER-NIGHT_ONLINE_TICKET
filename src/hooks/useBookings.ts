@@ -47,9 +47,18 @@ export function useMyBookings() {
   return useQuery({
     queryKey: ['bookings', 'mine'],
     queryFn: async (): Promise<BookingWithDetails[]> => {
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError) throw userError;
+      if (!user) return [];
+
       const { data, error } = await supabase
         .from('bookings')
         .select('*, events(*), attendees(*), payments(*), tickets(*)')
+        .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -83,7 +92,6 @@ export function useMyBookings() {
     },
   });
 }
-
 export function useBooking(id: string | undefined) {
   return useQuery({
     queryKey: ['booking', id],
