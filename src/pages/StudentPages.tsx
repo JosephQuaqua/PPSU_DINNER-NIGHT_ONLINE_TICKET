@@ -111,53 +111,39 @@ const downloadTicketImage = async () => {
     const dataUrl = await toPng(ticketElement, {
       pixelRatio: 2,
       cacheBust: true,
-      backgroundColor: '#FFFFFF',
     });
 
-    // Mobile browsers often block programmatic downloads.
-    // Opening the generated image gives the user a reliable way
-    // to save it on iPhone/Android.
-    const isMobile =
-      /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    // Convert the PNG data URL into a Blob
+    const response = await fetch(dataUrl);
+    const blob = await response.blob();
 
-    if (isMobile) {
-      const newWindow = window.open();
+    // On iPhone/iPad, open the native Share/Save interface
+    if (
+      /iPhone|iPad|iPod/i.test(navigator.userAgent) &&
+      navigator.share
+    ) {
+      const file = new File(
+        [blob],
+        `PPSU-Ticket-${t.ticket_number}.png`,
+        {
+          type: 'image/png',
+        }
+      );
 
-      if (newWindow) {
-        newWindow.document.write(`
-          <html>
-            <head>
-              <title>PPSU Ticket</title>
-              <meta name="viewport" content="width=device-width, initial-scale=1.0">
-              <style>
-                body {
-                  margin: 0;
-                  padding: 20px;
-                  background: #f8f5f0;
-                  display: flex;
-                  justify-content: center;
-                  align-items: flex-start;
-                }
+      if (
+        navigator.canShare &&
+        navigator.canShare({ files: [file] })
+      ) {
+        await navigator.share({
+          files: [file],
+          title: 'PPSU Digital Ticket',
+        });
 
-                img {
-                  max-width: 100%;
-                  height: auto;
-                }
-              </style>
-            </head>
-            <body>
-              <img src="${dataUrl}" alt="PPSU Event Ticket">
-            </body>
-          </html>
-        `);
-
-        newWindow.document.close();
+        return;
       }
-
-      return;
     }
 
-    // Desktop download
+    // Normal download for laptop/desktop and other browsers
     const link = document.createElement('a');
     link.download = `PPSU-Ticket-${t.ticket_number}.png`;
     link.href = dataUrl;
@@ -167,54 +153,82 @@ const downloadTicketImage = async () => {
   }
 };
 
-
   const downloadTicketPDF = async () => {
-    const ticketElement = document.getElementById('printable-ticket');
+  const ticketElement = document.getElementById('printable-ticket');
 
-    if (!ticketElement) {
-      console.error('Ticket element not found');
-      return;
-    }
+  if (!ticketElement) {
+    console.error('Ticket element not found');
+    return;
+  }
 
-    try {
-      const dataUrl = await toPng(ticketElement, {
-        pixelRatio: 2,
-        cacheBust: true,
-      });
+  try {
+    const dataUrl = await toPng(ticketElement, {
+      pixelRatio: 2,
+      cacheBust: true,
+    });
 
-      const pdf = new jsPDF({
-        orientation: 'portrait',
-        unit: 'px',
-        format: 'a4',
-      });
+    const pdf = new jsPDF({
+      orientation: 'portrait',
+      unit: 'px',
+      format: 'a4',
+    });
 
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = pdf.internal.pageSize.getHeight();
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfHeight = pdf.internal.pageSize.getHeight();
 
-      const image = new Image();
+    const image = new Image();
 
-      image.onload = () => {
-        const ratio = Math.min(
-          (pdfWidth - 40) / image.width,
-          (pdfHeight - 40) / image.height
+    image.onload = async () => {
+      const ratio = Math.min(
+        (pdfWidth - 40) / image.width,
+        (pdfHeight - 40) / image.height
+      );
+
+      const width = image.width * ratio;
+      const height = image.height * ratio;
+
+      const x = (pdfWidth - width) / 2;
+      const y = (pdfHeight - height) / 2;
+
+      pdf.addImage(dataUrl, 'PNG', x, y, width, height);
+
+      const pdfBlob = pdf.output('blob');
+
+      // iPhone/iPad: use the native Share/Save interface
+      if (
+        /iPhone|iPad|iPod/i.test(navigator.userAgent) &&
+        navigator.share
+      ) {
+        const file = new File(
+          [pdfBlob],
+          `PPSU-Ticket-${t.ticket_number}.pdf`,
+          {
+            type: 'application/pdf',
+          }
         );
 
-        const width = image.width * ratio;
-        const height = image.height * ratio;
+        if (
+          navigator.canShare &&
+          navigator.canShare({ files: [file] })
+        ) {
+          await navigator.share({
+            files: [file],
+            title: 'PPSU Digital Ticket',
+          });
 
-        const x = (pdfWidth - width) / 2;
-        const y = (pdfHeight - height) / 2;
+          return;
+        }
+      }
 
-        pdf.addImage(dataUrl, 'PNG', x, y, width, height);
-        pdf.save(`PPSU-Ticket-${t.ticket_number}.pdf`);
-      };
+      // Normal download for laptop/desktop and other browsers
+      pdf.save(`PPSU-Ticket-${t.ticket_number}.pdf`);
+    };
 
-      image.src = dataUrl;
-    } catch (error) {
-      console.error('TICKET PDF DOWNLOAD ERROR:', error);
-    }
-  };
-
+    image.src = dataUrl;
+  } catch (error) {
+    console.error('TICKET PDF DOWNLOAD ERROR:', error);
+  }
+};
    
 
   return (
