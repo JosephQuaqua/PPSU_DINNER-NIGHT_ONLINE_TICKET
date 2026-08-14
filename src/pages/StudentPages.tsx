@@ -4,7 +4,7 @@ import { ArrowLeft, ArrowRight, CalendarDays, Check, Clock3, CreditCard, Downloa
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { QRCodeSVG } from 'qrcode.react';
-import { toPng } from 'html-to-image';
+import { toBlob } from 'html-to-image';
 import { useAuth } from '@/hooks/useAuth';
 import { useBooking, useCreateBooking, useMyBookings, useSubmitPaymentProof } from '@/hooks/useBookings';
 import { useEvent } from '@/hooks/useEvents';
@@ -104,16 +104,56 @@ export function TicketPage() {
   if (!ticketElement) return;
 
   try {
-    const dataUrl = await toPng(ticketElement, {
+    const blob = await toBlob(ticketElement, {
       cacheBust: true,
       pixelRatio: 2,
     });
 
+    if (!blob) {
+      throw new Error('Could not generate ticket image.');
+    }
+
+    const file = new File(
+      [blob],
+      `${t.ticket_number}.png`,
+      { type: 'image/png' }
+    );
+
+    // Mobile browsers: use the native share sheet when supported.
+    if (
+      navigator.share &&
+      navigator.canShare &&
+      navigator.canShare({ files: [file] })
+    ) {
+      await navigator.share({
+        title: `PPSU Events Ticket - ${t.ticket_number}`,
+        text: 'My PPSU Events digital ticket',
+        files: [file],
+      });
+
+      return;
+    }
+
+    // Desktop / browsers that support normal Blob downloads
+    const url = URL.createObjectURL(blob);
+
     const link = document.createElement('a');
+    link.href = url;
     link.download = `${t.ticket_number}.png`;
-    link.href = dataUrl;
+
+    document.body.appendChild(link);
     link.click();
+    link.remove();
+
+    setTimeout(() => {
+      URL.revokeObjectURL(url);
+    }, 1000);
   } catch (error) {
+    // User closing the share sheet is not an application error.
+    if ((error as Error)?.name === 'AbortError') {
+      return;
+    }
+
     console.error('TICKET IMAGE DOWNLOAD ERROR:', error);
   }
 };
