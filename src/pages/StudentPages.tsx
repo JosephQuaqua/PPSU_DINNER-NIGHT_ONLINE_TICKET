@@ -225,13 +225,14 @@ export function TicketPage() {
     Download PDF
   </button>
 
-  <button
-    onClick={downloadTicketImage}
-    className="btn-outline w-full"
-  >
-    <Download size={16} />
-    Download Image
-  </button>
+ <button
+  type="button"
+  onClick={downloadTicketImage}
+  className="flex w-full items-center justify-center gap-2 rounded-full border border-navy-950/20 bg-white px-6 py-4 font-semibold text-navy-950 transition hover:bg-navy-950 hover:text-white"
+>
+  <Download size={16} />
+  Download Image
+</button>
 </div>
       </div>
     </DashboardShell>
