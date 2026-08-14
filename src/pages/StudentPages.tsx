@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowRight, CalendarDays, Check, Clock3, CreditCard, Downloa
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { QRCodeSVG } from 'qrcode.react';
+import { toPng } from 'html-to-image';
 import { useAuth } from '@/hooks/useAuth';
 import { useBooking, useCreateBooking, useMyBookings, useSubmitPaymentProof } from '@/hooks/useBookings';
 import { useEvent } from '@/hooks/useEvents';
@@ -97,6 +98,26 @@ export function TicketPage() {
   const event = b.events;
   const attendee = b.attendees?.find((a) => a.id === t.attendee_id);
 
+  const downloadTicketImage = async () => {
+  const ticketElement = document.getElementById('printable-ticket');
+
+  if (!ticketElement) return;
+
+  try {
+    const dataUrl = await toPng(ticketElement, {
+      cacheBust: true,
+      pixelRatio: 2,
+    });
+
+    const link = document.createElement('a');
+    link.download = `${t.ticket_number}.png`;
+    link.href = dataUrl;
+    link.click();
+  } catch (error) {
+    console.error('TICKET IMAGE DOWNLOAD ERROR:', error);
+  }
+};
+
   
 
   return (
@@ -105,7 +126,10 @@ export function TicketPage() {
       subtitle="Keep this pass ready for entry."
     >
       <div className="mx-auto max-w-2xl">
-        <div className="overflow-hidden rounded-[28px] bg-white shadow-2xl ring-1 ring-navy-950/5">
+        <div
+  id="printable-ticket"
+  className="overflow-hidden rounded-[28px] bg-white shadow-2xl ring-1 ring-navy-950/5"
+>
 
           <div className="relative bg-navy-950 p-8 text-white md:p-12">
   <div className="absolute right-8 top-8 h-24 w-24 overflow-hidden rounded-full border-2 border-gold-400/40 bg-ivory">
@@ -192,13 +216,23 @@ export function TicketPage() {
           </div>
         </div>
 
-        <button
-          onClick={() => window.print()}
-          className="btn-primary mt-6 w-full"
-        >
-          <Download size={16} />
-          Download ticket
-        </button>
+       <div className="mt-6 grid gap-3 sm:grid-cols-2">
+  <button
+    onClick={() => window.print()}
+    className="btn-primary w-full"
+  >
+    <Download size={16} />
+    Download PDF
+  </button>
+
+  <button
+    onClick={downloadTicketImage}
+    className="btn-outline w-full"
+  >
+    <Download size={16} />
+    Download Image
+  </button>
+</div>
       </div>
     </DashboardShell>
   );
