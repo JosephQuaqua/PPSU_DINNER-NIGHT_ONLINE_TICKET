@@ -1042,7 +1042,7 @@ export function AdminCheckInsPage() {
     if (!qrToken.trim() || !user) return;
     setBusy(true);
     setResult(null);
-    const { data, error } = await supabase.rpc('check_in_ticket', { p_qr_token: qrToken.trim(), p_staff_id: user.id });
+    const { data, error } = await supabase.rpc('check_in_ticket', { p_input: qrToken.trim(), p_staff_id: user.id });
     setBusy(false);
     if (error || !data || data.length === 0) {
       setResult({ success: false, ticket_number: '', attendee_name: '', event_title: '', message: 'Invalid ticket or unable to check in.' });
