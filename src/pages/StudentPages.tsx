@@ -245,11 +245,12 @@ const downloadTicketImage = async () => {
           <div className="relative bg-navy-950 p-8 text-white md:p-12">
   <div className="absolute right-8 top-8 h-24 w-24 overflow-hidden rounded-full border-2 border-gold-400/40 bg-ivory">
     {avatarUrl ? (
-      <img
-        src={avatarUrl}
-         alt={attendee?.full_name || 'Attendee'}
-        className="h-full w-full object-cover"
-      />
+     <img
+  src={avatarUrl}
+  alt={attendee?.full_name || 'Attendee'}
+  crossOrigin="anonymous"
+  className="h-full w-full object-cover"
+/>
     ) : (
       <div className="flex h-full w-full items-center justify-center">
         <UserRound size={32} className="text-navy-950/30" />
