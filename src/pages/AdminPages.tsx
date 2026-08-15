@@ -3,6 +3,7 @@ import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { BarChart3, CalendarDays, Check, ChevronRight, ClipboardCheck, FileText, LayoutDashboard, LogOut, Menu, Search, Settings, Ticket, Users, X } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase/client';
+import { getPaymentProofUrl } from '@/lib/supabase/storage';
 import { useAuth } from '@/hooks/useAuth';
 import { formatCurrency, formatDate, timeAgo } from '@/lib/utils/format';
 import { EventCard, EmptyState, LoadingState, StatusBadge } from '@/components/ui';
@@ -273,9 +274,42 @@ export function AdminPaymentsPage() {
   const { data: bookings = [], isLoading } = useQuery({ queryKey: ['admin-bookings'], queryFn: adminBookings });
   const pending = bookings.filter((b) => b.payments?.some((p) => p.status === 'submitted' || p.status === 'pending'));
   const [selected, setSelected] = useState<BookingWithDetails | null>(null);
-  const [note, setNote] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
+const [note, setNote] = useState('');
+const [busy, setBusy] = useState(false);
+const [error, setError] = useState('');
+const [proofUrl, setProofUrl] = useState<string | null>(null);
+const [proofLoading, setProofLoading] = useState(false);
+
+useEffect(() => {
+  let cancelled = false;
+
+  const loadProof = async () => {
+    setProofUrl(null);
+
+    if (!selected) return;
+
+    const proofPath = selected.payments?.[0]?.proof_url;
+
+    if (!proofPath) return;
+
+    setProofLoading(true);
+
+    const url = await getPaymentProofUrl(proofPath);
+
+    if (!cancelled) {
+      setProofUrl(url);
+      setProofLoading(false);
+    }
+  };
+
+  void loadProof();
+
+  return () => {
+    cancelled = true;
+  };
+}, [selected]);
+
+
     
   const review = async (approve: boolean) => {
     if (!selected || !user || !selected.payments?.[0]) return;
@@ -336,9 +370,41 @@ export function AdminPaymentsPage() {
               <p className="mt-3 font-display text-3xl">{formatCurrency(selected.total_amount)}</p>
               <p className="mt-2 text-muted">Reference: {selected.payments?.[0]?.transaction_reference || 'Not provided'}</p>
             </div>
-            {selected.payments?.[0]?.proof_url && (
-              <p className="mt-4 text-xs text-muted">Payment screenshot is stored privately and available through the secure review link.</p>
-            )}
+           {selected.payments?.[0]?.proof_url && (
+  <div className="mt-5">
+    <p className="mb-3 text-sm font-semibold text-navy-950">
+      Payment proof
+    </p>
+
+    <div className="overflow-hidden rounded-2xl border border-navy-950/10 bg-ivory">
+      {proofLoading ? (
+        <div className="flex min-h-48 items-center justify-center text-sm text-muted">
+          Loading payment proof…
+        </div>
+      ) : proofUrl ? (
+        <a
+          href={proofUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="block"
+        >
+          <img
+            src={proofUrl}
+            alt={`Payment proof for ${selected.booking_number}`}
+            className="max-h-[420px] w-full object-contain"
+          />
+          <div className="border-t border-navy-950/10 bg-white px-4 py-3 text-center text-xs font-semibold text-gold-700">
+            Click to open full-size proof
+          </div>
+        </a>
+      ) : (
+        <div className="flex min-h-48 items-center justify-center p-6 text-center text-sm text-red-600">
+          Unable to load the payment proof.
+        </div>
+      )}
+    </div>
+  </div>
+)}
             <textarea value={note} onChange={(e) => setNote(e.target.value)} className="input-field mt-5 min-h-24" placeholder="Admin note or rejection reason (required for rejection)" />
             {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
             <div className="mt-5 flex gap-3">
