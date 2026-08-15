@@ -139,16 +139,40 @@ const downloadTicketImage = async () => {
   }
 
   try {
+    // Make sure the avatar is fully loaded before html-to-image captures the ticket
+    const avatarImages = Array.from(
+      ticketElement.querySelectorAll('img')
+    );
+
+    await Promise.all(
+      avatarImages.map(
+        (img) =>
+          new Promise<void>((resolve) => {
+            if (img.complete && img.naturalWidth > 0) {
+              resolve();
+              return;
+            }
+
+            img.onload = () => resolve();
+            img.onerror = () => resolve();
+          })
+      )
+    );
+
+    // Give Safari a moment to finish rendering the avatar
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
     const dataUrl = await toPng(ticketElement, {
-      pixelRatio: 2,
+      pixelRatio: 1,
       cacheBust: true,
+      backgroundColor: '#FFFFFF',
+      skipFonts: false,
     });
 
-    // Convert the PNG data URL into a Blob
     const response = await fetch(dataUrl);
     const blob = await response.blob();
 
-    // On iPhone/iPad, open the native Share/Save interface
+    // iPhone / iPad: open native Share / Save interface
     if (
       /iPhone|iPad|iPod/i.test(navigator.userAgent) &&
       navigator.share
@@ -174,7 +198,7 @@ const downloadTicketImage = async () => {
       }
     }
 
-    // Normal download for laptop/desktop and other browsers
+    // Desktop / other browsers
     const link = document.createElement('a');
     link.download = `PPSU-Ticket-${t.ticket_number}.png`;
     link.href = dataUrl;
@@ -184,7 +208,7 @@ const downloadTicketImage = async () => {
   }
 };
 
-  const downloadTicketPDF = async () => {
+const downloadTicketPDF = async () => {
   const ticketElement = document.getElementById('printable-ticket');
 
   if (!ticketElement) {
@@ -193,9 +217,42 @@ const downloadTicketImage = async () => {
   }
 
   try {
+    // Make sure every ticket image, including the avatar, is loaded
+    const ticketImages = Array.from(
+      ticketElement.querySelectorAll('img')
+    );
+
+    await Promise.all(
+      ticketImages.map(
+        (img) =>
+          new Promise<void>((resolve) => {
+            if (img.complete && img.naturalWidth > 0) {
+              resolve();
+              return;
+            }
+
+            img.onload = () => resolve();
+            img.onerror = () => resolve();
+          })
+      )
+    );
+
+    // Give Safari time to finish rendering
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
     const dataUrl = await toPng(ticketElement, {
       pixelRatio: 2,
       cacheBust: true,
+      backgroundColor: '#FFFFFF',
+      skipFonts: false,
+    });
+
+    const image = new Image();
+
+    await new Promise<void>((resolve, reject) => {
+      image.onload = () => resolve();
+      image.onerror = reject;
+      image.src = dataUrl;
     });
 
     const pdf = new jsPDF({
@@ -207,55 +264,58 @@ const downloadTicketImage = async () => {
     const pdfWidth = pdf.internal.pageSize.getWidth();
     const pdfHeight = pdf.internal.pageSize.getHeight();
 
-    const image = new Image();
+    const margin = 40;
 
-    image.onload = async () => {
-      const ratio = Math.min(
-        (pdfWidth - 40) / image.width,
-        (pdfHeight - 40) / image.height
+    const ratio = Math.min(
+      (pdfWidth - margin * 2) / image.width,
+      (pdfHeight - margin * 2) / image.height
+    );
+
+    const width = image.width * ratio;
+    const height = image.height * ratio;
+
+    const x = (pdfWidth - width) / 2;
+    const y = (pdfHeight - height) / 2;
+
+    pdf.addImage(
+      dataUrl,
+      'PNG',
+      x,
+      y,
+      width,
+      height
+    );
+
+    const pdfBlob = pdf.output('blob');
+
+    // iPhone / iPad: native Share / Save interface
+    if (
+      /iPhone|iPad|iPod/i.test(navigator.userAgent) &&
+      navigator.share
+    ) {
+      const file = new File(
+        [pdfBlob],
+        `PPSU-Ticket-${t.ticket_number}.pdf`,
+        {
+          type: 'application/pdf',
+        }
       );
 
-      const width = image.width * ratio;
-      const height = image.height * ratio;
-
-      const x = (pdfWidth - width) / 2;
-      const y = (pdfHeight - height) / 2;
-
-      pdf.addImage(dataUrl, 'PNG', x, y, width, height);
-
-      const pdfBlob = pdf.output('blob');
-
-      // iPhone/iPad: use the native Share/Save interface
       if (
-        /iPhone|iPad|iPod/i.test(navigator.userAgent) &&
-        navigator.share
+        navigator.canShare &&
+        navigator.canShare({ files: [file] })
       ) {
-        const file = new File(
-          [pdfBlob],
-          `PPSU-Ticket-${t.ticket_number}.pdf`,
-          {
-            type: 'application/pdf',
-          }
-        );
+        await navigator.share({
+          files: [file],
+          title: 'PPSU Digital Ticket',
+        });
 
-        if (
-          navigator.canShare &&
-          navigator.canShare({ files: [file] })
-        ) {
-          await navigator.share({
-            files: [file],
-            title: 'PPSU Digital Ticket',
-          });
-
-          return;
-        }
+        return;
       }
+    }
 
-      // Normal download for laptop/desktop and other browsers
-      pdf.save(`PPSU-Ticket-${t.ticket_number}.pdf`);
-    };
-
-    image.src = dataUrl;
+    // Desktop / other browsers
+    pdf.save(`PPSU-Ticket-${t.ticket_number}.pdf`);
   } catch (error) {
     console.error('TICKET PDF DOWNLOAD ERROR:', error);
   }
@@ -277,7 +337,7 @@ const downloadTicketImage = async () => {
   <div className="absolute right-8 top-8 h-24 w-24 overflow-hidden rounded-full border-2 border-gold-400/40 bg-ivory">
     {avatarUrl ? (
      <img
-  src={avatarUrl}
+ src={avatarUrl || undefined}
   alt={attendee?.full_name || 'Attendee'}
   crossOrigin="anonymous"
   className="h-full w-full object-cover"
