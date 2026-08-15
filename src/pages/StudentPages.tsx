@@ -67,56 +67,55 @@ export function TicketPage() {
     .find(({ t }) => t.id === id);
 
   useEffect(() => {
-    const loadAvatar = async () => {
-  if (!ticket?.b.user_id) return;
+  const loadAvatar = async () => {
+    if (!ticket?.b.user_id) return;
 
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('avatar_url')
-    .eq('id', ticket.b.user_id)
-    .maybeSingle();
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('avatar_url')
+      .eq('id', ticket.b.user_id)
+      .maybeSingle();
 
-  if (error) {
-    console.error('PROFILE AVATAR ERROR:', error);
-    return;
-  }
-
-  const avatar = data?.avatar_url;
-
-  if (!avatar) {
-    setAvatarUrl(null);
-    return;
-  }
-
-  try {
-    const response = await fetch(avatar, {
-      mode: 'cors',
-      cache: 'no-cache',
-    });
-
-    if (!response.ok) {
-      throw new Error(`Avatar request failed: ${response.status}`);
+    if (error) {
+      console.error('PROFILE AVATAR ERROR:', error);
+      return;
     }
 
-    const blob = await response.blob();
+    if (!data?.avatar_url) {
+      setAvatarUrl(null);
+      return;
+    }
 
-    const reader = new FileReader();
+    try {
+      const response = await fetch(data.avatar_url);
 
-    reader.onloadend = () => {
-      setAvatarUrl(reader.result as string);
-    };
+      if (!response.ok) {
+        throw new Error(`Avatar request failed: ${response.status}`);
+      }
 
-    reader.readAsDataURL(blob);
-  } catch (error) {
-    console.error('AVATAR DATA URL ERROR:', error);
+      const blob = await response.blob();
 
-    // Keep the normal avatar URL as a fallback
-    setAvatarUrl(avatar);
-  }
-};
+      const reader = new FileReader();
 
-    void loadAvatar();
-  }, [ticket?.b.user_id]);
+      reader.onloadend = () => {
+        if (typeof reader.result === 'string') {
+          setAvatarUrl(reader.result);
+        }
+      };
+
+      reader.readAsDataURL(blob);
+    } catch (error) {
+      console.error('AVATAR LOAD ERROR:', error);
+
+      // Don't use the remote URL as the capture source.
+      // This prevents html-to-image from trying to load
+      // the cross-origin avatar again.
+      setAvatarUrl(null);
+    }
+  };
+
+  void loadAvatar();
+}, [ticket?.b.user_id]);
 
   if (!ticket) {
     return (
