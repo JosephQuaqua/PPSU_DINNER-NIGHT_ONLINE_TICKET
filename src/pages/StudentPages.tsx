@@ -162,11 +162,16 @@ const downloadTicketImage = async () => {
     await new Promise((resolve) => setTimeout(resolve, 300));
 
     const dataUrl = await toPng(ticketElement, {
-      pixelRatio: 1,
-      cacheBust: true,
-      backgroundColor: '#FFFFFF',
-      skipFonts: false,
-    });
+  pixelRatio: 1,
+  cacheBust: true,
+  backgroundColor: '#FFFFFF',
+  skipFonts: false,
+  imagePlaceholder:
+    'data:image/svg+xml;charset=utf-8,' +
+    encodeURIComponent(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"></svg>'
+    ),
+});
 
     const response = await fetch(dataUrl);
     const blob = await response.blob();
@@ -239,12 +244,17 @@ const downloadTicketPDF = async () => {
     // Give Safari time to finish rendering
     await new Promise((resolve) => setTimeout(resolve, 300));
 
-    const dataUrl = await toPng(ticketElement, {
-      pixelRatio: 2,
-      cacheBust: true,
-      backgroundColor: '#FFFFFF',
-      skipFonts: false,
-    });
+   const dataUrl = await toPng(ticketElement, {
+  pixelRatio: 1,
+  cacheBust: true,
+  backgroundColor: '#FFFFFF',
+  skipFonts: false,
+  imagePlaceholder:
+    'data:image/svg+xml;charset=utf-8,' +
+    encodeURIComponent(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"></svg>'
+    ),
+});
 
     const image = new Image();
 
