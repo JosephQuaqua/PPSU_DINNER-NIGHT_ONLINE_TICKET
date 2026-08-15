@@ -138,7 +138,6 @@ const downloadTicketImage = async () => {
   }
 
   try {
-    // Make sure the avatar is fully loaded before html-to-image captures the ticket
     const avatarImages = Array.from(
       ticketElement.querySelectorAll('img')
     );
@@ -158,21 +157,23 @@ const downloadTicketImage = async () => {
       )
     );
 
-    // Give Safari a moment to finish rendering the avatar
     await new Promise((resolve) => setTimeout(resolve, 300));
 
+    const rect = ticketElement.getBoundingClientRect();
+
     const dataUrl = await toPng(ticketElement, {
-  pixelRatio: 1,
-  cacheBust: true,
-  backgroundColor: '#FFFFFF',
-  skipFonts: false,
-  width: Math.min(ticketElement.scrollWidth, 390),
-});
+      pixelRatio: 1,
+      cacheBust: true,
+      backgroundColor: '#FFFFFF',
+      skipFonts: false,
+      width: Math.round(rect.width),
+      height: Math.round(rect.height),
+    });
 
     const response = await fetch(dataUrl);
     const blob = await response.blob();
 
-    // iPhone / iPad: open native Share / Save interface
+    // Mobile
     if (
       /iPhone|iPad|iPod/i.test(navigator.userAgent) &&
       navigator.share
@@ -198,7 +199,7 @@ const downloadTicketImage = async () => {
       }
     }
 
-    // Desktop / other browsers
+    // Laptop / desktop
     const link = document.createElement('a');
     link.download = `PPSU-Ticket-${t.ticket_number}.png`;
     link.href = dataUrl;
@@ -207,7 +208,6 @@ const downloadTicketImage = async () => {
     console.error('TICKET IMAGE DOWNLOAD ERROR:', error);
   }
 };
-
 const downloadTicketPDF = async () => {
   const ticketElement = document.getElementById('printable-ticket');
 
@@ -245,7 +245,11 @@ const downloadTicketPDF = async () => {
   cacheBust: true,
   backgroundColor: '#FFFFFF',
   skipFonts: false,
-  width: Math.min(ticketElement.scrollWidth, 390),
+  imagePlaceholder:
+    'data:image/svg+xml;charset=utf-8,' +
+    encodeURIComponent(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"></svg>'
+    ),
 });
 
     const image = new Image();
