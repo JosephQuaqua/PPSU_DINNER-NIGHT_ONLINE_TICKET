@@ -500,6 +500,7 @@ function EventCreateModal({ close, done }: { close: () => void; done: () => void
   const [price, setPrice] = useState('');
   const [upiId, setUpiId] = useState('');
   const [upiQrUrl, setUpiQrUrl] = useState('');
+  
   const [bannerUrl, setBannerUrl] = useState('');
   const [reservationExpiryHours, setReservationExpiryHours] = useState('24');
   const [isFeatured, setIsFeatured] = useState(false);
@@ -1340,26 +1341,378 @@ export function AdminAuditPage() {
 }
 
 export function AdminSettingsPage() {
+  const { user, isStaff } = useAuth();
+
+  const [platformName, setPlatformName] = useState('');
+const [upiId, setUpiId] = useState('');
+const [upiQrUrl, setUpiQrUrl] = useState('');
+const [reservationHours, setReservationHours] = useState('24');
+
+const [qrFile, setQrFile] = useState<File | null>(null);
+const [uploadingQr, setUploadingQr] = useState(false);
+
+const [loading, setLoading] = useState(true);
+const [saving, setSaving] = useState(false);
+const [message, setMessage] = useState('');
+const [error, setError] = useState('');
+
+  useEffect(() => {
+    const loadSettings = async () => {
+      setLoading(true);
+      setError('');
+
+      const { data, error } = await supabase
+        .from('platform_settings')
+        .select('*')
+        .limit(1)
+        .maybeSingle();
+
+      if (error) {
+        console.error('PLATFORM SETTINGS LOAD ERROR:', error);
+        setError(error.message);
+        setLoading(false);
+        return;
+      }
+
+      if (data) {
+        setPlatformName(data.platform_name || '');
+        setUpiId(data.upi_id || '');
+        setUpiQrUrl(data.upi_qr_url || '');
+        setReservationHours(
+          String(data.default_reservation_hours ?? 24)
+        );
+      }
+
+      setLoading(false);
+    };
+
+    void loadSettings();
+  }, []);
+
+  const saveSettings = async (e: React.FormEvent) => {
+  e.preventDefault();
+
+  if (!user) {
+    setError('You must be signed in as an administrator.');
+    return;
+  }
+
+  setSaving(true);
+  setMessage('');
+  setError('');
+
+  try {
+    let finalQrUrl = upiQrUrl;
+
+    /*
+     * Upload a new QR image if the admin selected one.
+     */
+    if (qrFile) {
+      setUploadingQr(true);
+
+      const allowedTypes = [
+        'image/png',
+        'image/jpeg',
+        'image/webp',
+      ];
+
+      if (!allowedTypes.includes(qrFile.type)) {
+        throw new Error(
+          'Please upload a PNG, JPG, or WebP image.'
+        );
+      }
+
+      if (qrFile.size > 5 * 1024 * 1024) {
+        throw new Error(
+          'QR image must be smaller than 5 MB.'
+        );
+      }
+
+      const fileExtension =
+        qrFile.name.split('.').pop()?.toLowerCase() || 'png';
+
+      const fileName = `upi-qr-${Date.now()}.${fileExtension}`;
+
+      const filePath = `upi/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('payment-assets')
+        .upload(filePath, qrFile, {
+          cacheControl: '3600',
+          upsert: false,
+          contentType: qrFile.type,
+        });
+
+      if (uploadError) {
+        console.error('UPI QR UPLOAD ERROR:', uploadError);
+        throw new Error(uploadError.message);
+      }
+
+      const { data: publicUrlData } = supabase.storage
+        .from('payment-assets')
+        .getPublicUrl(filePath);
+
+      finalQrUrl = publicUrlData.publicUrl;
+
+      setUpiQrUrl(finalQrUrl);
+      setQrFile(null);
+      setUploadingQr(false);
+    }
+
+    /*
+     * Save platform settings.
+     */
+    const { error: updateError } = await supabase
+      .from('platform_settings')
+      .update({
+        platform_name: platformName.trim(),
+        upi_id: upiId.trim() || null,
+        upi_qr_url: finalQrUrl.trim() || null,
+        default_reservation_hours: Number(reservationHours),
+        updated_at: new Date().toISOString(),
+        updated_by: user.id,
+      })
+      .not('id', 'is', null);
+
+    if (updateError) {
+      console.error(
+        'PLATFORM SETTINGS UPDATE ERROR:',
+        updateError
+      );
+
+      throw new Error(updateError.message);
+    }
+
+    setMessage('Platform settings saved successfully.');
+  } catch (error) {
+    console.error('SETTINGS SAVE ERROR:', error);
+
+    setError(
+      error instanceof Error
+        ? error.message
+        : 'Unable to save platform settings.'
+    );
+  } finally {
+    setUploadingQr(false);
+    setSaving(false);
+  }
+};
+
   return (
     <AdminLayout>
-      <AdminTitle eyebrow="Configuration" title="Settings" text="Manage platform and event operations settings." />
-      <div className="grid gap-6 md:grid-cols-2">
-        <div className="rounded-2xl bg-white p-7 ring-1 ring-navy-950/5">
-          <h2 className="font-display text-2xl text-navy-950">Platform</h2>
-          <div className="mt-5 space-y-4 text-sm text-muted">
-            <p className="flex justify-between"><span>Platform name</span><strong className="text-navy-950">PPSU Events</strong></p>
-            <p className="flex justify-between"><span>Payment mode</span><strong className="text-navy-950">Manual UPI</strong></p>
-            <p className="flex justify-between"><span>Default reservation</span><strong className="text-navy-950">24 hours</strong></p>
+      <AdminTitle
+        eyebrow="Configuration"
+        title="Settings"
+        text="Manage platform and payment settings."
+      />
+
+      {loading ? (
+        <LoadingState />
+      ) : (
+        <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
+          <form
+            onSubmit={saveSettings}
+            className="rounded-2xl bg-white p-7 ring-1 ring-navy-950/5"
+          >
+            <div>
+              <p className="section-label">Platform configuration</p>
+
+              <h2 className="mt-2 font-display text-3xl text-navy-950">
+                Platform settings
+              </h2>
+
+              <p className="mt-2 text-sm leading-6 text-muted">
+                These settings control the information students see during
+                the booking and payment process.
+              </p>
+            </div>
+
+            <div className="mt-7 space-y-5">
+              <label className="block text-sm font-semibold">
+                Platform name
+
+                <input
+                  className="input-field mt-2"
+                  value={platformName}
+                  onChange={(e) => setPlatformName(e.target.value)}
+                  placeholder="PPSU Events"
+                  required
+                />
+              </label>
+
+              <label className="block text-sm font-semibold">
+                UPI ID
+
+                <input
+                  className="input-field mt-2"
+                  value={upiId}
+                  onChange={(e) => setUpiId(e.target.value)}
+                  placeholder="example@upi"
+                />
+
+                <span className="mt-2 block text-xs font-normal text-muted">
+                  Students will use this UPI ID when paying by UPI.
+                </span>
+              </label>
+
+              <div className="rounded-2xl border border-navy-950/10 bg-white p-5">
+  <div>
+    <p className="text-sm font-semibold">
+      UPI QR Code
+    </p>
+
+    <p className="mt-1 text-xs font-normal text-muted">
+      Upload the QR code students will scan to make a UPI payment.
+      PNG, JPG, and WebP images up to 5 MB are supported.
+    </p>
+  </div>
+
+  <label className="mt-4 block">
+    <span className="sr-only">
+      Upload UPI QR code
+    </span>
+
+    <input
+      type="file"
+      accept="image/png,image/jpeg,image/webp"
+      onChange={(e) => {
+        const file = e.target.files?.[0] || null;
+        setQrFile(file);
+      }}
+      className="block w-full cursor-pointer rounded-xl border border-navy-950/10 bg-ivory p-3 text-sm"
+    />
+  </label>
+
+  {qrFile && (
+    <p className="mt-3 text-xs text-muted">
+      Selected: <strong>{qrFile.name}</strong>
+    </p>
+  )}
+
+  {upiQrUrl && (
+    <div className="mt-5 rounded-2xl border border-navy-950/10 bg-ivory p-5">
+      <p className="text-xs font-bold uppercase tracking-widest text-muted">
+        Current QR code
+      </p>
+
+      <div className="mt-4 flex justify-center">
+        <img
+          src={upiQrUrl}
+          alt="Current UPI payment QR code"
+          className="h-52 w-52 rounded-xl bg-white object-contain p-3 shadow-sm ring-1 ring-navy-950/10"
+        />
+      </div>
+    </div>
+  )}
+</div>
+
+              {upiQrUrl && (
+                <div className="rounded-2xl border border-navy-950/10 bg-ivory p-5">
+                  <p className="text-xs font-bold uppercase tracking-widest text-muted">
+                    QR preview
+                  </p>
+
+                  <div className="mt-4 flex justify-center">
+                    <img
+                      src={upiQrUrl}
+                      alt="UPI payment QR code preview"
+                      className="h-48 w-48 rounded-xl bg-white object-contain p-3 ring-1 ring-navy-950/10"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <label className="block text-sm font-semibold">
+                Default reservation expiry
+
+                <div className="mt-2 flex items-center gap-3">
+                  <input
+                    className="input-field"
+                    type="number"
+                    min="1"
+                    value={reservationHours}
+                    onChange={(e) =>
+                      setReservationHours(e.target.value)
+                    }
+                    required
+                  />
+
+                  <span className="text-sm text-muted">
+                    hours
+                  </span>
+                </div>
+              </label>
+            </div>
+
+            {error && (
+              <div className="mt-6 rounded-xl bg-red-50 p-4 text-sm text-red-700">
+                {error}
+              </div>
+            )}
+
+            {message && (
+              <div className="mt-6 rounded-xl bg-emerald-50 p-4 text-sm text-emerald-700">
+                {message}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={saving}
+              className="btn-primary mt-7 w-full disabled:opacity-50"
+            >
+              {uploadingQr
+  ? 'Uploading QR…'
+  : saving
+    ? 'Saving…'
+    : 'Save settings'}
+            </button>
+          </form>
+
+          <div className="h-fit rounded-2xl bg-navy-950 p-7 text-white">
+            <p className="section-label text-gold-200">
+              Payment configuration
+            </p>
+
+            <h2 className="mt-2 font-display text-3xl">
+              Manual payment
+            </h2>
+
+            <p className="mt-4 text-sm leading-7 text-white/60">
+              Payment is currently handled manually. Students will
+              eventually be able to choose between UPI and cash when
+              submitting their payment.
+            </p>
+
+            <div className="mt-7 space-y-3">
+              <div className="rounded-xl bg-white/10 p-4">
+                <p className="text-xs uppercase tracking-widest text-gold-200">
+                  UPI
+                </p>
+                <p className="mt-1 text-sm text-white/70">
+                  {upiId || 'Not configured'}
+                </p>
+              </div>
+
+              <div className="rounded-xl bg-white/10 p-4">
+                <p className="text-xs uppercase tracking-widest text-gold-200">
+                  Cash
+                </p>
+                <p className="mt-1 text-sm text-white/70">
+                  Available for manual approval
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-7 border-t border-white/10 pt-5">
+              <p className="text-xs leading-5 text-white/40">
+                Payments are not automatically approved. An authorized
+                administrator must review and approve submitted payments.
+              </p>
+            </div>
           </div>
         </div>
-        <div className="rounded-2xl bg-navy-950 p-7 text-white">
-          <h2 className="font-display text-2xl">Admin access</h2>
-          <p className="mt-4 text-sm leading-6 text-white/60">To grant a user admin access, run this SQL in the Supabase dashboard after they create an account:</p>
-          <pre className="mt-4 overflow-x-auto rounded-xl bg-white/10 p-4 text-xs text-gold-200">{`INSERT INTO staff_roles (user_id, role)
-VALUES ('<user-uuid>', 'super_admin');`}</pre>
-          <p className="mt-4 text-xs text-white/40">Available roles: super_admin, event_admin, gate_staff</p>
-        </div>
-      </div>
+      )}
     </AdminLayout>
   );
 }

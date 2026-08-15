@@ -52,7 +52,73 @@ const Field = React.forwardRef<
 });
 
 Field.displayName = 'Field';
-export function PaymentPage() { const { id } = useParams(); const { data: booking, isLoading } = useBooking(id); const { user } = useAuth(); const submit = useSubmitPaymentProof(); const [file, setFile] = useState<File | null>(null); const [message, setMessage] = useState(''); const form = useForm<PaymentProofValues>({ resolver: zodResolver(paymentProofSchema) }); if (isLoading) return <DashboardShell title="Complete your payment"><LoadingState /></DashboardShell>; if (!booking || !booking.events) return <DashboardShell title="Booking not found"><EmptyState title="We couldn't find that booking" text="Return to your bookings and try again." /></DashboardShell>; const event = booking.events; const payment = booking.payments?.[0]; const submitProof = async (values: PaymentProofValues) => { if (!file || !payment) { setMessage('Please choose your payment screenshot first.'); return; } const path = await uploadPaymentProof(file, booking.id); if (!path) { setMessage('We could not upload that screenshot. Please try again.'); return; } try { await submit.mutateAsync({ paymentId: payment.id, bookingId: booking.id, transactionReference: values.transaction_reference, proofUrl: path }); setMessage('Payment submitted successfully. Your booking is waiting for admin verification.'); } catch { setMessage('Unable to submit payment proof. Please try again.'); } }; return <DashboardShell title="Complete your payment" subtitle="Your place is reserved for 24 hours."><div className="grid gap-10 lg:grid-cols-[1fr_370px]"><div className="rounded-[24px] bg-white p-7 shadow-sm ring-1 ring-navy-950/5 md:p-10"><div className="flex items-start justify-between"><div><p className="section-label">Booking created successfully</p><h2 className="mt-3 font-display text-4xl text-navy-950">Pay securely via UPI.</h2></div><StatusBadge status={booking.status} /></div><div className="mt-10 rounded-2xl bg-ivory p-6"><p className="text-xs uppercase tracking-widest text-muted">Amount due</p><p className="mt-2 font-display text-5xl text-navy-950">{formatCurrency(booking.total_amount)}</p><p className="mt-2 text-sm text-muted">Booking {booking.booking_number}</p></div><div className="mt-8"><p className="text-sm font-bold text-navy-950">Payment instructions</p><p className="mt-2 text-sm leading-6 text-muted">Pay the exact amount using the UPI ID below, then upload your payment screenshot for manual verification.</p><div className="mt-5 flex items-center justify-between rounded-xl border border-gold-400/30 bg-gold-50 px-4 py-4"><span className="text-sm text-muted">UPI ID</span><strong className="text-sm text-navy-950">{event.upi_id || 'ppsu-events@upi'}</strong></div></div>{message ? <div className="mt-8 rounded-xl bg-emerald-50 p-5 text-sm leading-6 text-emerald-800"><Check size={18} />{message}</div> : <form onSubmit={form.handleSubmit(submitProof)} className="mt-10 space-y-5"><label className="block"><span className="mb-2 block text-sm font-semibold text-navy-950">Transaction reference</span><input className="input-field" placeholder="Enter UPI transaction ID" {...form.register('transaction_reference')} />{form.formState.errors.transaction_reference && <span className="mt-1.5 block text-xs text-red-600">{form.formState.errors.transaction_reference.message}</span>}</label><label className="flex cursor-pointer items-center gap-3 rounded-xl border border-dashed border-navy-950/20 bg-ivory px-4 py-5 text-sm text-muted"><Upload size={19} className="text-gold-500" /><span className="flex-1">{file ? file.name : 'Upload payment screenshot'}</span><input className="sr-only" type="file" accept="image/*" onChange={(e) => setFile(e.target.files?.[0] || null)} /></label><button disabled={submit.isPending} className="btn-primary w-full">{submit.isPending ? 'Submitting…' : 'Submit payment proof'} <ArrowRight size={16} /></button></form>}</div><aside className="h-fit rounded-[24px] bg-navy-950 p-7 text-white lg:sticky lg:top-28"><p className="section-label text-gold-200">Your booking</p><h2 className="mt-4 font-display text-3xl">{event.title}</h2><div className="mt-7 space-y-4 text-sm text-white/65"><p className="flex justify-between"><span>Booking number</span><strong className="text-white">{booking.booking_number}</strong></p><p className="flex justify-between"><span>Tickets</span><strong className="text-white">{booking.attendee_count}</strong></p><p className="flex justify-between"><span>Deadline</span><strong className="text-gold-200">{booking.expires_at ? formatDate(booking.expires_at) : '24 hours'}</strong></p></div><div className="mt-8 border-t border-white/10 pt-6"><p className="text-xs leading-6 text-white/45">Your booking appears immediately in the PPSU Events admin payment queue. Confirmation and ticket issuance happen after verification.</p></div></aside></div></DashboardShell>; }
+export function PaymentPage() {
+  const { id } = useParams();
+  const { data: booking, isLoading } = useBooking(id);
+  const { user } = useAuth();
+  const submit = useSubmitPaymentProof();
+
+  const [file, setFile] = useState<File | null>(null);
+  const [message, setMessage] = useState('');
+
+  const [platformSettings, setPlatformSettings] = useState<{
+    upi_id: string | null;
+    upi_qr_url: string | null;
+  } | null>(null);
+
+  const [settingsLoading, setSettingsLoading] = useState(true);
+
+    useEffect(() => {
+    const loadPlatformSettings = async () => {
+      setSettingsLoading(true);
+
+      const { data, error } = await supabase
+        .from('platform_settings')
+        .select('upi_id, upi_qr_url')
+        .limit(1)
+        .maybeSingle();
+
+      if (error) {
+        console.error('PLATFORM SETTINGS LOAD ERROR:', error);
+        setPlatformSettings(null);
+      } else {
+        setPlatformSettings(data);
+      }
+
+      setSettingsLoading(false);
+    };
+
+    void loadPlatformSettings();
+  }, []);
+ const form = useForm<PaymentProofValues>({ resolver: zodResolver(paymentProofSchema) }); if (isLoading) return <DashboardShell title="Complete your payment"><LoadingState /></DashboardShell>; if (!booking || !booking.events) return <DashboardShell title="Booking not found"><EmptyState title="We couldn't find that booking" text="Return to your bookings and try again." /></DashboardShell>; const event = booking.events; const payment = booking.payments?.[0]; const submitProof = async (values: PaymentProofValues) => { if (!file || !payment) { setMessage('Please choose your payment screenshot first.'); return; } const path = await uploadPaymentProof(file, booking.id); if (!path) { setMessage('We could not upload that screenshot. Please try again.'); return; } try { await submit.mutateAsync({ paymentId: payment.id, bookingId: booking.id, transactionReference: values.transaction_reference, proofUrl: path }); setMessage('Payment submitted successfully. Your booking is waiting for admin verification.'); } catch { setMessage('Unable to submit payment proof. Please try again.'); } }; return <DashboardShell title="Complete your payment" subtitle="Your place is reserved for 24 hours."><div className="grid gap-10 lg:grid-cols-[1fr_370px]"><div className="rounded-[24px] bg-white p-7 shadow-sm ring-1 ring-navy-950/5 md:p-10"><div className="flex items-start justify-between"><div><p className="section-label">Booking created successfully</p><h2 className="mt-3 font-display text-4xl text-navy-950">Pay securely via UPI.</h2></div><StatusBadge status={booking.status} /></div><div className="mt-10 rounded-2xl bg-ivory p-6"><p className="text-xs uppercase tracking-widest text-muted">Amount due</p><p className="mt-2 font-display text-5xl text-navy-950">{formatCurrency(booking.total_amount)}</p><p className="mt-2 text-sm text-muted">Booking {booking.booking_number}</p></div><div className="mt-8"><p className="text-sm font-bold text-navy-950">Payment instructions</p><p className="mt-2 text-sm leading-6 text-muted">Pay the exact amount using the UPI ID below, then upload your payment screenshot for manual verification.</p><div className="mt-5 rounded-xl border border-gold-400/30 bg-gold-50 p-5">
+  <div className="flex items-center justify-between">
+    <span className="text-sm text-muted">UPI ID</span>
+
+    <strong className="text-sm text-navy-950">
+      {settingsLoading
+        ? 'Loading…'
+        : platformSettings?.upi_id || 'UPI ID not configured'}
+    </strong>
+  </div>
+
+  {platformSettings?.upi_qr_url && (
+    <div className="mt-6 flex justify-center border-t border-gold-400/20 pt-6">
+      <div className="rounded-2xl bg-white p-4 shadow-sm">
+        <img
+          src={platformSettings.upi_qr_url}
+          alt="UPI payment QR code"
+          className="h-56 w-56 object-contain"
+        />
+      </div>
+    </div>
+  )}
+
+  {!settingsLoading && !platformSettings?.upi_qr_url && (
+    <p className="mt-4 text-center text-xs text-muted">
+      UPI QR code is not currently configured.
+    </p>
+  )}
+</div></div>{message ? <div className="mt-8 rounded-xl bg-emerald-50 p-5 text-sm leading-6 text-emerald-800"><Check size={18} />{message}</div> : <form onSubmit={form.handleSubmit(submitProof)} className="mt-10 space-y-5"><label className="block"><span className="mb-2 block text-sm font-semibold text-navy-950">Transaction reference</span><input className="input-field" placeholder="Enter UPI transaction ID" {...form.register('transaction_reference')} />{form.formState.errors.transaction_reference && <span className="mt-1.5 block text-xs text-red-600">{form.formState.errors.transaction_reference.message}</span>}</label><label className="flex cursor-pointer items-center gap-3 rounded-xl border border-dashed border-navy-950/20 bg-ivory px-4 py-5 text-sm text-muted"><Upload size={19} className="text-gold-500" /><span className="flex-1">{file ? file.name : 'Upload payment screenshot'}</span><input className="sr-only" type="file" accept="image/*" onChange={(e) => setFile(e.target.files?.[0] || null)} /></label><button disabled={submit.isPending} className="btn-primary w-full">{submit.isPending ? 'Submitting…' : 'Submit payment proof'} <ArrowRight size={16} /></button></form>}</div><aside className="h-fit rounded-[24px] bg-navy-950 p-7 text-white lg:sticky lg:top-28"><p className="section-label text-gold-200">Your booking</p><h2 className="mt-4 font-display text-3xl">{event.title}</h2><div className="mt-7 space-y-4 text-sm text-white/65"><p className="flex justify-between"><span>Booking number</span><strong className="text-white">{booking.booking_number}</strong></p><p className="flex justify-between"><span>Tickets</span><strong className="text-white">{booking.attendee_count}</strong></p><p className="flex justify-between"><span>Deadline</span><strong className="text-gold-200">{booking.expires_at ? formatDate(booking.expires_at) : '24 hours'}</strong></p></div><div className="mt-8 border-t border-white/10 pt-6"><p className="text-xs leading-6 text-white/45">Your booking appears immediately in the PPSU Events admin payment queue. Confirmation and ticket issuance happen after verification.</p></div></aside></div></DashboardShell>; }
 export function BookingDetailPage() { const { id } = useParams(); const { data: booking, isLoading } = useBooking(id); if (isLoading) return <DashboardShell title="Booking details"><LoadingState /></DashboardShell>; if (!booking || !booking.events) return <DashboardShell title="Booking details"><EmptyState title="Booking not found" text="This booking may no longer be available." /></DashboardShell>; const event = booking.events; return <DashboardShell title="Booking details"><div className="grid gap-8 lg:grid-cols-[1fr_330px]"><div className="space-y-6"><div className="card p-7"><div className="flex flex-wrap items-start justify-between gap-4"><div><p className="section-label">{booking.booking_number}</p><h2 className="mt-2 font-display text-4xl text-navy-950">{event.title}</h2><p className="mt-2 text-sm text-muted">Created {formatDate(booking.created_at)}</p></div><StatusBadge status={booking.status} /></div><div className="mt-8"><EventMeta event={event} /></div></div><div className="card p-7"><div className="flex items-center justify-between"><h3 className="font-display text-2xl text-navy-950">Attendees</h3><span className="text-sm text-muted">{booking.attendee_count}</span></div><div className="mt-5 space-y-3">{booking.attendees?.map((attendee) => <div key={attendee.id} className="flex items-center justify-between rounded-xl bg-ivory p-4"><div><p className="font-semibold text-navy-950">{attendee.full_name}</p><p className="text-xs text-muted">{attendee.student_id} · {attendee.email}</p></div><Check size={17} className="text-emerald-600" /></div>)}</div></div></div><aside className="h-fit rounded-[24px] bg-navy-950 p-7 text-white"><p className="section-label text-gold-200">Payment</p><p className="mt-3 font-display text-4xl">{formatCurrency(booking.total_amount)}</p><div className="mt-6"><StatusBadge status={booking.payments?.[0]?.status || 'pending'} /></div>{booking.status === 'payment_pending' || booking.status === 'payment_rejected' ? <Link to={`/dashboard/bookings/${booking.id}/payment`} className="btn-primary mt-7 w-full">Continue to payment <ArrowRight size={16} /></Link> : null}{booking.tickets?.length ? <Link to={`/dashboard/tickets/${booking.tickets[0].id}`} className="btn-outline mt-3 w-full">View digital ticket <Ticket size={16} /></Link> : null}</aside></div></DashboardShell>; }
 export function TicketPage() {
   const { id } = useParams();
