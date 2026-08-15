@@ -166,11 +166,7 @@ const downloadTicketImage = async () => {
   cacheBust: true,
   backgroundColor: '#FFFFFF',
   skipFonts: false,
-  imagePlaceholder:
-    'data:image/svg+xml;charset=utf-8,' +
-    encodeURIComponent(
-      '<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"></svg>'
-    ),
+  width: Math.min(ticketElement.scrollWidth, 390),
 });
 
     const response = await fetch(dataUrl);
@@ -249,11 +245,7 @@ const downloadTicketPDF = async () => {
   cacheBust: true,
   backgroundColor: '#FFFFFF',
   skipFonts: false,
-  imagePlaceholder:
-    'data:image/svg+xml;charset=utf-8,' +
-    encodeURIComponent(
-      '<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"></svg>'
-    ),
+  width: Math.min(ticketElement.scrollWidth, 390),
 });
 
     const image = new Image();
