@@ -356,7 +356,7 @@ useEffect(() => {
       </div>
       {selected && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-navy-950/50 p-4 md:items-center">
-          <div className="w-full max-w-lg rounded-3xl bg-white p-7 shadow-2xl">
+          <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-3xl bg-white p-7 shadow-2xl">
             <div className="flex items-start justify-between">
               <div>
                 <p className="section-label">Payment review</p>
