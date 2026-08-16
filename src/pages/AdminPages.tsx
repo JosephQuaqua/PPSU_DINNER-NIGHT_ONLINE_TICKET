@@ -341,7 +341,13 @@ useEffect(() => {
                   <div>
                     <p className="text-xs font-bold tracking-widest text-gold-600">{b.booking_number}</p>
                     <p className="mt-1 font-semibold">{b.events?.title}</p>
-                    <p className="mt-1 text-xs text-muted">{b.attendees?.[0]?.full_name} · {p?.transaction_reference || 'No reference yet'}</p>
+                    <p className="mt-1 text-xs text-muted">
+  {b.attendees?.[0]?.full_name} ·{' '}
+  <span className="font-semibold text-navy-950">
+    {b.ticket_type === 'couple' ? 'Couple' : 'Regular'}
+  </span>{' '}
+  · {p?.transaction_reference || 'No reference yet'}
+</p>
                   </div>
                   <div className="flex items-center gap-5">
                     <strong>{formatCurrency(b.total_amount)}</strong>
