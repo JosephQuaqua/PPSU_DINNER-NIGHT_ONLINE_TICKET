@@ -1145,30 +1145,59 @@ export function PaymentPage() {
                 )}
               </label>
 
-              <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-dashed border-navy-950/20 bg-ivory px-4 py-5 text-sm text-muted">
-                <Upload
-                  size={19}
-                  className="text-gold-500"
-                />
+             <label className="block cursor-pointer">
+  <span className="mb-2 block text-sm font-semibold text-navy-950">
+    Payment screenshot <span className="text-red-600">*</span>
+  </span>
 
-                <span className="flex-1">
-                  {file
-                    ? file.name
-                    : 'Upload payment screenshot'}
-                </span>
+  <div
+    className={`flex items-center gap-3 rounded-xl border border-dashed bg-ivory px-4 py-5 text-sm transition ${
+      file
+        ? 'border-emerald-400 bg-emerald-50'
+        : 'border-navy-950/20 hover:border-gold-400'
+    }`}
+  >
+    <Upload
+      size={19}
+      className={
+        file
+          ? 'text-emerald-600'
+          : 'text-gold-500'
+      }
+    />
 
-                <input
-                  className="sr-only"
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) =>
-                    setFile(
-                      e.target.files?.[0] ||
-                        null,
-                    )
-                  }
-                />
-              </label>
+    <span className="flex-1">
+      {file
+        ? file.name
+        : 'Upload payment screenshot'}
+    </span>
+
+    <input
+      className="sr-only"
+      type="file"
+      accept="image/jpeg,image/png,image/webp"
+      required
+      onChange={(e) => {
+        const selectedFile =
+          e.target.files?.[0] || null;
+
+        setFile(selectedFile);
+      }}
+    />
+  </div>
+
+  {!file && (
+    <span className="mt-1.5 block text-xs text-muted">
+      Payment screenshot is required.
+    </span>
+  )}
+
+  {file && (
+    <span className="mt-1.5 block text-xs text-emerald-700">
+      Payment screenshot selected.
+    </span>
+  )}
+</label>
 
               <button
                 type="submit"
