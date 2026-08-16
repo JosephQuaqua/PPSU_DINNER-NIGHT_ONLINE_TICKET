@@ -1016,7 +1016,19 @@ export function AdminAttendeesPage() {
                     <td className="px-5 py-4 text-muted">{attendee.email}</td>
                     <td className="px-5 py-4 text-muted">{booking.events?.title}</td>
                     <td className="px-5 py-4 font-bold text-gold-600">{booking.booking_number}</td>
-                    <td className="px-5 py-4"><span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${attendee.is_self ? 'bg-gold-50 text-gold-700' : 'bg-navy-50 text-navy-700'}`}>{attendee.is_self ? 'Self' : 'Guest'}</span></td>
+                    <td className="px-5 py-4">
+  <span
+    className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+      booking.ticket_type === 'couple'
+        ? 'bg-navy-50 text-navy-700'
+        : 'bg-gold-50 text-gold-700'
+    }`}
+  >
+    {booking.ticket_type === 'couple'
+      ? 'Couple'
+      : 'Regular'}
+  </span>
+</td>
                   </tr>
                 ))}
               </tbody>

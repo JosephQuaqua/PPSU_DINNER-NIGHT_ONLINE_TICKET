@@ -62,6 +62,7 @@ export interface BookingRow {
   booking_number: string;
   event_id: string;
   user_id: string;
+  ticket_type: 'regular' | 'couple';
   status: BookingStatus;
   attendee_count: number;
   total_amount: number;

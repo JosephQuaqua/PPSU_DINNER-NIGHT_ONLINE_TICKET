@@ -1516,10 +1516,19 @@ export function TicketPage() {
   const event = b.events;
 
   const attendee =
-    b.attendees?.find(
-      (item) =>
-        item.id === t.attendee_id,
-    );
+  b.attendees?.find(
+    (item) =>
+      item.id === t.attendee_id,
+  );
+
+const partnerAttendee =
+  b.attendees?.find(
+    (item) =>
+      item.id !== t.attendee_id,
+  );
+
+const isCoupleTicket =
+  b.ticket_type === 'couple';
 
   const waitForImages = async (
     element: HTMLElement,
@@ -1877,15 +1886,30 @@ export function TicketPage() {
               </p>
 
               <div className="mt-3">
-                <p className="font-display text-3xl text-navy-950">
-                  {attendee?.full_name}
-                </p>
+  <p className="font-display text-3xl text-navy-950">
+    {attendee?.full_name}
+  </p>
 
-                <p className="mt-1 text-sm text-muted">
-                  {attendee?.student_id}
-                </p>
-              </div>
+  <p className="mt-1 text-sm text-muted">
+    {attendee?.student_id}
+  </p>
 
+  {isCoupleTicket && partnerAttendee && (
+    <div className="mt-5 border-t border-navy-950/10 pt-5">
+      <p className="text-xs uppercase tracking-widest text-muted">
+        Partner
+      </p>
+
+      <p className="mt-2 font-display text-2xl text-navy-950">
+        {partnerAttendee.full_name}
+      </p>
+
+      <p className="mt-1 text-sm text-muted">
+        {partnerAttendee.student_id}
+      </p>
+    </div>
+  )}
+</div>
               <div className="mt-10">
                 <p className="text-xs uppercase tracking-widest text-muted">
                   Ticket number
