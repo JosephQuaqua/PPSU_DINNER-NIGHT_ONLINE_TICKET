@@ -35,6 +35,8 @@ export interface EventRow {
   created_by: string | null;
   created_at: string;
   updated_at: string;
+  regular_ticket_price: number;
+couple_ticket_price: number;
 }
 
 export interface ProfileRow {

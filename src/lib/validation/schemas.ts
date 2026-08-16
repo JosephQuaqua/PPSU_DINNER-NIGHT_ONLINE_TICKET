@@ -41,18 +41,43 @@ export const profileSchema = z.object({
 });
 
 export const selfBookingSchema = z.object({
-  full_name: z.string().min(2, 'Enter full name'),
-  student_id: z.string().min(3, 'Enter student ID'),
+  full_name: z
+    .string()
+    .min(2, 'Full name is required'),
+
+  student_id: z
+    .string()
+    .min(1, 'Student ID is required'),
+
+  email: z
+    .string()
+    .email('Enter a valid email address'),
+
+  partner_name: z.string().optional(),
+
+  partner_student_id: z.string().optional(),
+
+  partner_email: z
+    .string()
+    .email('Enter a valid partner email address')
+    .optional()
+    .or(z.literal('')),
+});
+
+
+export const coupleBookingSchema = z.object({
+  full_name: z.string().min(2, 'Enter your full name'),
+  student_id: z.string().min(3, 'Enter your student ID'),
   email: z
     .string()
     .email('Enter a valid PPSU email')
     .regex(ppsuEmailRegex, 'Use a PPSU email (name@ppsu.ac.in)'),
-});
 
-export const guestSchema = z.object({
-  full_name: z.string().min(2, 'Enter full name'),
-  student_id: z.string().min(3, 'Enter student ID'),
-  email: z
+  partner_name: z.string().min(2, 'Enter your partner’s full name'),
+  partner_student_id: z
+    .string()
+    .min(3, 'Enter your partner’s student ID'),
+  partner_email: z
     .string()
     .email('Enter a valid PPSU email')
     .regex(ppsuEmailRegex, 'Use a PPSU email (name@ppsu.ac.in)'),
@@ -90,8 +115,9 @@ export type SignInValues = z.infer<typeof signInSchema>;
 export type SignUpValues = z.infer<typeof signUpSchema>;
 export type ForgotPasswordValues = z.infer<typeof forgotPasswordSchema>;
 export type ProfileValues = z.infer<typeof profileSchema>;
-export type SelfBookingValues = z.infer<typeof selfBookingSchema>;
-export type GuestValues = z.infer<typeof guestSchema>;
+export type SelfBookingValues =
+  z.infer<typeof selfBookingSchema>;
+export type CoupleBookingValues = z.infer<typeof coupleBookingSchema>;
 export type PaymentProofValues = z.infer<typeof paymentProofSchema>;
 export type EventFormValues = z.infer<typeof eventFormSchema>;
 export type RejectionValues = z.infer<typeof rejectionSchema>;

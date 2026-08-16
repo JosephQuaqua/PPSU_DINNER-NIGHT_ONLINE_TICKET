@@ -12,33 +12,57 @@ import type {
 interface CreateBookingInput {
   eventId: string;
   userId: string;
-  attendeeCount: number;
-  totalAmount: number;
-  fullName: string;
-  studentId: string;
-  email: string;
+  ticketType: 'regular' | 'couple';
+  selfName: string;
+  selfStudentId: string;
+  selfEmail: string;
+  partnerName?: string;
+  partnerStudentId?: string;
+  partnerEmail?: string;
 }
 
 export function useCreateBooking() {
   const client = useQueryClient();
+
   return useMutation({
     mutationFn: async (input: CreateBookingInput) => {
       const { data, error } = await supabase.rpc('create_booking', {
         p_event_id: input.eventId,
         p_user_id: input.userId,
-        p_attendee_count: input.attendeeCount,
-        p_total_amount: input.totalAmount,
-        p_self_name: input.fullName,
-        p_self_student_id: input.studentId,
-        p_self_email: input.email,
+        p_ticket_type: input.ticketType,
+        p_self_name: input.selfName,
+        p_self_student_id: input.selfStudentId,
+        p_self_email: input.selfEmail,
+        p_partner_name: input.partnerName ?? null,
+        p_partner_student_id: input.partnerStudentId ?? null,
+        p_partner_email: input.partnerEmail ?? null,
       });
-      if (error) throw error;
-      if (!data || data.length === 0) throw new Error('Booking could not be created');
-      return data[0] as { booking_id: string; booking_number: string; status: string; total_amount: number; expires_at: string };
+
+      if (error) {
+        throw error;
+      }
+
+      if (!data || data.length === 0) {
+        throw new Error('Booking could not be created');
+      }
+
+      return data[0] as {
+        booking_id: string;
+        booking_number: string;
+        status: string;
+        total_amount: number;
+        expires_at: string;
+      };
     },
+
     onSuccess: () => {
-      client.invalidateQueries({ queryKey: ['events'] });
-      client.invalidateQueries({ queryKey: ['bookings'] });
+      client.invalidateQueries({
+        queryKey: ['events'],
+      });
+
+      client.invalidateQueries({
+        queryKey: ['bookings'],
+      });
     },
   });
 }
