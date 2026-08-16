@@ -171,7 +171,7 @@ export function AdminDashboardPage() {
       <AdminTitle eyebrow="Overview" title="Good evening, Administrator." text="Here's what's happening across PPSU Events." />
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <AdminStat label="Total tickets" value={confirmed.reduce((sum, b) => sum + (b.tickets?.length || 0), 0)} />
-        <AdminStat label="Total bookings" value={bookings.length} accent />
+      <AdminStat label="Total bookings" value={confirmed.length} accent />
         <AdminStat label="Revenue" value={formatCurrency(revenue)} />
         <AdminStat label="Pending payments" value={pending.length} />
         <AdminStat label="Seats available" value={seats} />
@@ -1304,9 +1304,9 @@ export function AdminWaitlistsPage() {
 }
 
 export function AdminAuditPage() {
-  const [activeTab, setActiveTab] = useState<'booking' | 'checkin' | 'payment'>(
-    'payment'
-  );
+  const [activeTab, setActiveTab] = useState<
+    'booking' | 'checkin' | 'payment'
+  >('payment');
 
   const {
     data: logs = [],
@@ -1327,63 +1327,193 @@ export function AdminAuditPage() {
     },
   });
 
-  /*
-   * Load payment information separately.
-   *
-   * This avoids:
-   * .select('*, profiles(...)')
-   *
-   * which was causing the TypeScript problem with AuditLogRow.
-   */
   const {
-    data: payments = [],
-    isLoading: paymentsLoading,
-  } = useQuery({
-    queryKey: ['admin-audit-payments'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('payments')
-        .select(`
-          id,
-          booking_id,
-          user_id,
-          amount,
-          payment_method,
-          transaction_reference,
-          status,
-          admin_note,
-          reviewed_by,
-          reviewed_at,
-          created_at,
-          bookings (
+  data: payments = [],
+  isLoading: paymentsLoading,
+} = useQuery({
+  queryKey: ['admin-audit-payments'],
+  queryFn: async () => {
+    // 1. Load payments without nested Supabase relationships.
+    const { data: paymentData, error: paymentError } = await supabase
+      .from('payments')
+      .select(`
+        id,
+        booking_id,
+        user_id,
+        amount,
+        payment_method,
+        transaction_reference,
+        status,
+        admin_note,
+        reviewed_by,
+        reviewed_at,
+        created_at
+      `)
+      .order('created_at', { ascending: false })
+      .limit(200);
+
+    if (paymentError) {
+      throw paymentError;
+    }
+
+    const rawPayments = paymentData || [];
+
+    if (rawPayments.length === 0) {
+      return [];
+    }
+
+    // 2. Collect booking and profile IDs.
+    const bookingIds = [
+      ...new Set(
+        rawPayments
+          .map((payment) => payment.booking_id)
+          .filter(Boolean)
+      ),
+    ];
+
+    const userIds = [
+      ...new Set(
+        rawPayments
+          .map((payment) => payment.user_id)
+          .filter(Boolean)
+      ),
+    ];
+
+    const reviewerIds = [
+      ...new Set(
+        rawPayments
+          .map((payment) => payment.reviewed_by)
+          .filter(Boolean)
+      ),
+    ];
+
+    // 3. Load bookings separately.
+    const { data: bookingData, error: bookingError } = bookingIds.length
+      ? await supabase
+          .from('bookings')
+          .select(`
+            id,
             booking_number,
-            event_id,
-            events (
-              title
-            )
-          ),
-          payer:profiles!payments_user_id_fkey (
+            event_id
+          `)
+          .in('id', bookingIds)
+      : { data: [], error: null };
+
+    if (bookingError) {
+      throw bookingError;
+    }
+
+    const bookings = bookingData || [];
+
+    // 4. Load events separately.
+    const eventIds = [
+      ...new Set(
+        bookings
+          .map((booking) => booking.event_id)
+          .filter(Boolean)
+      ),
+    ];
+
+    const { data: eventData, error: eventError } = eventIds.length
+      ? await supabase
+          .from('events')
+          .select(`
+            id,
+            title
+          `)
+          .in('id', eventIds)
+      : { data: [], error: null };
+
+    if (eventError) {
+      throw eventError;
+    }
+
+    const events = eventData || [];
+
+    // 5. Load profiles separately.
+    const profileIds = [
+      ...new Set([...userIds, ...reviewerIds]),
+    ];
+
+    const { data: profileData, error: profileError } = profileIds.length
+      ? await supabase
+          .from('profiles')
+          .select(`
+            id,
             full_name,
             email,
             student_id
-          ),
-          reviewer:profiles!payments_reviewed_by_fkey (
-            full_name,
-            email
-          )
-        `)
-        .order('created_at', { ascending: false })
-        .limit(200);
+          `)
+          .in('id', profileIds)
+      : { data: [], error: null };
 
-      if (error) throw error;
+    if (profileError) {
+      throw profileError;
+    }
 
-      return data || [];
-    },
-  });
+    const profiles = profileData || [];
 
-  /*
-   * Separate audit categories.
-   */
+    // 6. Create lookup maps.
+    const bookingMap = new Map(
+      bookings.map((booking) => [
+        booking.id,
+        booking,
+      ])
+    );
+
+    const eventMap = new Map(
+      events.map((event) => [
+        event.id,
+        event,
+      ])
+    );
+
+    const profileMap = new Map(
+      profiles.map((profile) => [
+        profile.id,
+        profile,
+      ])
+    );
+
+    // 7. Build the structure used by the payment audit UI.
+    return rawPayments.map((payment) => {
+      const booking = bookingMap.get(payment.booking_id);
+
+      const event = booking?.event_id
+        ? eventMap.get(booking.event_id)
+        : undefined;
+
+      const payer = payment.user_id
+        ? profileMap.get(payment.user_id)
+        : undefined;
+
+      const reviewer = payment.reviewed_by
+        ? profileMap.get(payment.reviewed_by)
+        : undefined;
+
+      return {
+        ...payment,
+
+        bookings: booking
+          ? {
+              booking_number: booking.booking_number,
+              event_id: booking.event_id,
+              events: event
+                ? {
+                    title: event.title,
+                  }
+                : null,
+            }
+          : null,
+
+        payer: payer || null,
+
+        reviewer: reviewer || null,
+      };
+    });
+  },
+});
+
   const bookingLogs = logs.filter((log) =>
     [
       'booking_created',
@@ -1401,27 +1531,17 @@ export function AdminAuditPage() {
     ].includes(log.action)
   );
 
-  /*
-   * Payment audit is driven primarily from the payments table.
-   *
-   * This gives us the complete payment history:
-   * - who paid
-   * - how much
-   * - payment method
-   * - transaction reference
-   * - approved/rejected
-   * - who reviewed it
-   * - when it was reviewed
-   * - admin note
-   */
   const paymentLogs = logs.filter((log) =>
-    ['payment_approved', 'payment_rejected', 'payment_submitted'].includes(
-      log.action
-    )
+    [
+      'payment_approved',
+      'payment_rejected',
+      'payment_submitted',
+    ].includes(log.action)
   );
 
   const paymentRows = payments.filter((payment) => {
     return (
+      payment.status === 'pending' ||
       payment.status === 'approved' ||
       payment.status === 'rejected' ||
       paymentLogs.some((log) => log.entity_id === payment.id)
@@ -1430,7 +1550,9 @@ export function AdminAuditPage() {
 
   const isLoadingPayments = isLoading || paymentsLoading;
 
-  return (
+const auditError = error;
+
+return (
     <AdminLayout>
       <AdminTitle
         eyebrow="Governance"
@@ -1487,19 +1609,25 @@ export function AdminAuditPage() {
       </div>
 
       {/* Error */}
-      {error && (
+      {auditError && (
         <div className="mt-6 rounded-xl border border-red-200 bg-red-50 p-5 text-sm text-red-700">
-          Unable to load audit information.
+          <p className="font-semibold">
+            Unable to load audit information.
+          </p>
+
+          <p className="mt-1 text-xs opacity-80">
+            Please check your database permissions and try again.
+          </p>
         </div>
       )}
 
       {/* BOOKING AUDIT */}
       {activeTab === 'booking' && (
-        <div className="mt-6 rounded-2xl bg-white ring-1 ring-navy-950/5">
+        <div className="mt-6 overflow-hidden rounded-2xl bg-white ring-1 ring-navy-950/5">
           {isLoading ? (
             <LoadingState />
           ) : bookingLogs.length === 0 ? (
-            <div className="p-6">
+            <div className="p-8">
               <EmptyState
                 title="No booking audit entries"
                 text="Booking actions will appear here when bookings are created, changed, cancelled, or expired."
@@ -1510,24 +1638,38 @@ export function AdminAuditPage() {
               {bookingLogs.map((log) => (
                 <div
                   key={log.id}
-                  className="flex flex-col gap-4 p-5 md:flex-row md:items-center md:justify-between"
+                  className="flex flex-col gap-4 p-5 transition hover:bg-ivory/60 md:flex-row md:items-center md:justify-between"
                 >
-                  <div>
-                    <p className="text-sm font-semibold capitalize text-navy-950">
-                      {log.action.replace(/_/g, ' ')}
-                    </p>
+                  <div className="flex items-start gap-4">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-navy-950/5">
+                      <span className="text-sm font-bold text-navy-950">
+                        B
+                      </span>
+                    </div>
 
-                    <p className="mt-1 text-xs text-muted">
-                      Booking
-                      {log.entity_id
-                        ? ` · ${log.entity_id.slice(0, 8)}`
-                        : ''}
-                    </p>
+                    <div>
+                      <p className="text-sm font-semibold capitalize text-navy-950">
+                        {log.action.replace(/_/g, ' ')}
+                      </p>
+
+                      <p className="mt-1 text-xs text-muted">
+                        Booking
+                        {log.entity_id
+                          ? ` · ${log.entity_id.slice(0, 8)}`
+                          : ''}
+                      </p>
+                    </div>
                   </div>
 
-                  <span className="text-xs text-muted">
-                    {timeAgo(log.created_at)}
-                  </span>
+                  <div className="text-left md:text-right">
+                    <p className="text-xs font-medium text-muted">
+                      {timeAgo(log.created_at)}
+                    </p>
+
+                    <p className="mt-1 text-[11px] text-muted/70">
+                      {new Date(log.created_at).toLocaleString()}
+                    </p>
+                  </div>
                 </div>
               ))}
             </div>
@@ -1537,11 +1679,11 @@ export function AdminAuditPage() {
 
       {/* CHECK-IN AUDIT */}
       {activeTab === 'checkin' && (
-        <div className="mt-6 rounded-2xl bg-white ring-1 ring-navy-950/5">
+        <div className="mt-6 overflow-hidden rounded-2xl bg-white ring-1 ring-navy-950/5">
           {isLoading ? (
             <LoadingState />
           ) : checkInLogs.length === 0 ? (
-            <div className="p-6">
+            <div className="p-8">
               <EmptyState
                 title="No check-in audit entries"
                 text="Ticket check-in activity will appear here."
@@ -1552,24 +1694,38 @@ export function AdminAuditPage() {
               {checkInLogs.map((log) => (
                 <div
                   key={log.id}
-                  className="flex flex-col gap-4 p-5 md:flex-row md:items-center md:justify-between"
+                  className="flex flex-col gap-4 p-5 transition hover:bg-ivory/60 md:flex-row md:items-center md:justify-between"
                 >
-                  <div>
-                    <p className="text-sm font-semibold capitalize text-navy-950">
-                      {log.action.replace(/_/g, ' ')}
-                    </p>
+                  <div className="flex items-start gap-4">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-100">
+                      <span className="text-sm font-bold text-emerald-700">
+                        ✓
+                      </span>
+                    </div>
 
-                    <p className="mt-1 text-xs text-muted">
-                      Ticket
-                      {log.entity_id
-                        ? ` · ${log.entity_id.slice(0, 8)}`
-                        : ''}
-                    </p>
+                    <div>
+                      <p className="text-sm font-semibold capitalize text-navy-950">
+                        {log.action.replace(/_/g, ' ')}
+                      </p>
+
+                      <p className="mt-1 text-xs text-muted">
+                        Ticket
+                        {log.entity_id
+                          ? ` · ${log.entity_id.slice(0, 8)}`
+                          : ''}
+                      </p>
+                    </div>
                   </div>
 
-                  <span className="text-xs text-muted">
-                    {timeAgo(log.created_at)}
-                  </span>
+                  <div className="text-left md:text-right">
+                    <p className="text-xs font-medium text-muted">
+                      {timeAgo(log.created_at)}
+                    </p>
+
+                    <p className="mt-1 text-[11px] text-muted/70">
+                      {new Date(log.created_at).toLocaleString()}
+                    </p>
+                  </div>
                 </div>
               ))}
             </div>
@@ -1579,11 +1735,11 @@ export function AdminAuditPage() {
 
       {/* PAYMENT AUDIT */}
       {activeTab === 'payment' && (
-        <div className="mt-6 rounded-2xl bg-white ring-1 ring-navy-950/5">
+        <div className="mt-6 overflow-hidden rounded-2xl bg-white ring-1 ring-navy-950/5">
           {isLoadingPayments ? (
             <LoadingState />
           ) : paymentRows.length === 0 ? (
-            <div className="p-6">
+            <div className="p-8">
               <EmptyState
                 title="No payment audit entries"
                 text="Payment submissions, approvals, and rejections will appear here."
@@ -1610,42 +1766,71 @@ export function AdminAuditPage() {
 
                 const isApproved = payment.status === 'approved';
                 const isRejected = payment.status === 'rejected';
+                const isPending = payment.status === 'pending';
 
                 return (
                   <div
                     key={payment.id}
-                    className="p-6"
+                    className="p-6 transition hover:bg-ivory/30"
                   >
-                    {/* Top row */}
-                    <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                      <div>
-                        <div className="flex flex-wrap items-center gap-3">
+                    {/* Header */}
+                    <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
+                      <div className="flex gap-4">
+                        <div
+                          className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full ${
+                            isApproved
+                              ? 'bg-emerald-100'
+                              : isRejected
+                              ? 'bg-red-100'
+                              : 'bg-amber-100'
+                          }`}
+                        >
                           <span
-                            className={`rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wider ${
+                            className={`text-sm font-bold ${
                               isApproved
-                                ? 'bg-emerald-100 text-emerald-700'
+                                ? 'text-emerald-700'
                                 : isRejected
-                                ? 'bg-red-100 text-red-700'
-                                : 'bg-amber-100 text-amber-700'
+                                ? 'text-red-700'
+                                : 'text-amber-700'
                             }`}
                           >
-                            {payment.status}
-                          </span>
-
-                          <span className="text-xs text-muted">
-                            Payment
+                            {isApproved
+                              ? '✓'
+                              : isRejected
+                              ? '!'
+                              : '…'}
                           </span>
                         </div>
 
-                        <h3 className="mt-3 font-display text-2xl text-navy-950">
-                          {event?.title || 'PPSU Event'}
-                        </h3>
+                        <div>
+                          <div className="flex flex-wrap items-center gap-3">
+                            <span
+                              className={`rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wider ${
+                                isApproved
+                                  ? 'bg-emerald-100 text-emerald-700'
+                                  : isRejected
+                                  ? 'bg-red-100 text-red-700'
+                                  : 'bg-amber-100 text-amber-700'
+                              }`}
+                            >
+                              {payment.status}
+                            </span>
 
-                        <p className="mt-1 text-xs text-muted">
-                          Booking{' '}
-                          {booking?.booking_number ||
-                            payment.booking_id?.slice(0, 8)}
-                        </p>
+                            <span className="text-xs text-muted">
+                              Payment
+                            </span>
+                          </div>
+
+                          <h3 className="mt-3 font-display text-2xl text-navy-950">
+                            {event?.title || 'PPSU Event'}
+                          </h3>
+
+                          <p className="mt-1 text-xs text-muted">
+                            Booking{' '}
+                            {booking?.booking_number ||
+                              payment.booking_id?.slice(0, 8)}
+                          </p>
+                        </div>
                       </div>
 
                       <div className="text-left md:text-right">
@@ -1653,15 +1838,15 @@ export function AdminAuditPage() {
                           {formatCurrency(payment.amount)}
                         </p>
 
-                        <p className="mt-1 text-xs text-muted">
-                          {payment.payment_method?.toUpperCase() || 'PAYMENT'}
+                        <p className="mt-1 text-xs uppercase tracking-wider text-muted">
+                          {payment.payment_method?.toUpperCase() ||
+                            'PAYMENT'}
                         </p>
                       </div>
                     </div>
 
-                    {/* Payment details */}
+                    {/* Details */}
                     <div className="mt-6 grid gap-4 rounded-2xl bg-ivory p-5 md:grid-cols-2">
-                      {/* Person who paid */}
                       <div>
                         <p className="text-xs uppercase tracking-widest text-muted">
                           Paid by
@@ -1681,7 +1866,6 @@ export function AdminAuditPage() {
                         </p>
                       </div>
 
-                      {/* Transaction */}
                       <div>
                         <p className="text-xs uppercase tracking-widest text-muted">
                           Transaction
@@ -1702,7 +1886,6 @@ export function AdminAuditPage() {
                         </p>
                       </div>
 
-                      {/* Reviewer */}
                       <div>
                         <p className="text-xs uppercase tracking-widest text-muted">
                           Reviewed by
@@ -1720,7 +1903,6 @@ export function AdminAuditPage() {
                         </p>
                       </div>
 
-                      {/* Review date */}
                       <div>
                         <p className="text-xs uppercase tracking-widest text-muted">
                           Review date
@@ -1753,6 +1935,21 @@ export function AdminAuditPage() {
 
                         <p className="mt-1">
                           {payment.admin_note}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Pending indicator */}
+                    {isPending && (
+                      <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+                        <p className="font-semibold">
+                          Payment awaiting review
+                        </p>
+
+                        <p className="mt-1">
+                          This payment has been submitted but has
+                          not yet been approved or rejected by an
+                          administrator.
                         </p>
                       </div>
                     )}

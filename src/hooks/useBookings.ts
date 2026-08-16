@@ -126,37 +126,80 @@ export function useBooking(id: string | undefined) {
 
 export function useSubmitPaymentProof() {
   const client = useQueryClient();
+
   return useMutation({
-    mutationFn: async ({ paymentId, bookingId, transactionReference, proofUrl }: { paymentId: string; bookingId: string; transactionReference: string; proofUrl: string }) => {
-      const { error: paymentError } = await supabase.from('payments').update({
-        transaction_reference: transactionReference,
-        proof_url: proofUrl,
-        status: 'submitted',
-      }).eq('id', paymentId).eq('booking_id', bookingId);
-      if (paymentError) throw paymentError;
-      const { error: bookingError } = await supabase.from('bookings').update({ status: 'payment_submitted' }).eq('id', bookingId);
-      if (bookingError) throw bookingError;
-      return true;
+    mutationFn: async ({
+      bookingId,
+      userId,
+      amount,
+      transactionReference,
+      proofUrl,
+    }: {
+      bookingId: string;
+      userId: string;
+      amount: number;
+      transactionReference: string;
+      proofUrl: string;
+    }) => {
+      /*
+       * Payment does NOT exist when the booking is first created.
+       * It is created only when the student actually submits payment.
+       */
+      const { data: payment, error: paymentError } = await supabase
+        .from('payments')
+        .insert({
+          booking_id: bookingId,
+          user_id: userId,
+          amount,
+          payment_method: 'upi',
+          transaction_reference: transactionReference,
+          proof_url: proofUrl,
+          status: 'submitted',
+        })
+        .select()
+        .single();
+
+      if (paymentError) {
+        throw paymentError;
+      }
+
+      /*
+       * Only after the payment submission succeeds,
+       * move the booking into payment review.
+       */
+      const { error: bookingError } = await supabase
+        .from('bookings')
+        .update({
+          status: 'payment_submitted',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', bookingId)
+        .eq('user_id', userId);
+
+      if (bookingError) {
+        throw bookingError;
+      }
+
+      return payment as PaymentRow;
     },
+
     onSuccess: (_data, variables) => {
-      client.invalidateQueries({ queryKey: ['booking', variables.bookingId] });
-      client.invalidateQueries({ queryKey: ['bookings'] });
+      client.invalidateQueries({
+        queryKey: ['booking', variables.bookingId],
+      });
+
+      client.invalidateQueries({
+        queryKey: ['bookings'],
+      });
     },
   });
 }
 
-export async function ensurePayment(booking: BookingWithDetails): Promise<PaymentRow> {
+export async function getExistingPayment(
+  booking: BookingWithDetails
+): Promise<PaymentRow | null> {
   const existing = booking.payments?.[0];
-  if (existing) return existing;
-  const { data, error } = await supabase.from('payments').insert({
-    booking_id: booking.id,
-    user_id: booking.user_id,
-    amount: booking.total_amount,
-    payment_method: 'upi',
-    status: 'pending',
-  }).select().single();
-  if (error) throw error;
-  return data as PaymentRow;
-}
 
+  return existing ?? null;
+}
 export type { EventRow, AttendeeRow, TicketRow };
