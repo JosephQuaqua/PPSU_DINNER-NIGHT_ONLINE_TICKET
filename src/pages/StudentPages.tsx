@@ -1067,9 +1067,9 @@ export function PaymentPage() {
        * UPI uses the booking total.
        */
       const paymentAmount =
-        paymentMethod === 'cash'
-          ? Number(cashAmount)
-          : Number(booking.total_amount);
+  paymentMethod === 'cash'
+    ? Number(values.cash_amount)
+    : Number(booking.total_amount);
 
       await submit.mutateAsync({
         bookingId: booking.id,

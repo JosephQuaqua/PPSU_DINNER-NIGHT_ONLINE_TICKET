@@ -373,8 +373,24 @@ useEffect(() => {
             <div className="mt-7 rounded-2xl bg-ivory p-5 text-sm">
               <p className="font-semibold">{selected.events?.title}</p>
               <p className="mt-2 text-muted">{selected.attendees?.map((a) => a.full_name).join(', ')}</p>
-              <p className="mt-3 font-display text-3xl">{formatCurrency(selected.total_amount)}</p>
-              <p className="mt-2 text-muted">Reference: {selected.payments?.[0]?.transaction_reference || 'Not provided'}</p>
+              <p className="mt-3 font-display text-3xl">
+  {formatCurrency(selected.total_amount)}
+</p>
+
+<p className="mt-2 text-muted">
+  Payment method:{' '}
+  <span className="font-semibold text-navy-950">
+    {selected.payments?.[0]?.payment_method === 'cash'
+      ? 'Cash'
+      : 'UPI'}
+  </span>
+</p>
+
+<p className="mt-2 text-muted">
+  Reference:{' '}
+  {selected.payments?.[0]?.transaction_reference ||
+    'Not provided'}
+</p>
             </div>
            {selected.payments?.[0]?.proof_url && (
   <div className="mt-5">
@@ -1376,6 +1392,9 @@ export function AdminAuditPage() {
 
     const rawPayments = paymentData || [];
 
+    console.log('AUDIT PAYMENT DATA:', rawPayments);
+
+
     if (rawPayments.length === 0) {
       return [];
     }
@@ -1557,14 +1576,15 @@ export function AdminAuditPage() {
     ].includes(log.action)
   );
 
-  const paymentRows = payments.filter((payment) => {
-    return (
-      payment.status === 'pending' ||
-      payment.status === 'approved' ||
-      payment.status === 'rejected' ||
-      paymentLogs.some((log) => log.entity_id === payment.id)
-    );
-  });
+ const paymentRows = payments.filter((payment) => {
+  return (
+    payment.status === 'pending' ||
+    payment.status === 'submitted' ||
+    payment.status === 'approved' ||
+    payment.status === 'rejected' ||
+    paymentLogs.some((log) => log.entity_id === payment.id)
+  );
+});
 
   const isLoadingPayments = isLoading || paymentsLoading;
 
