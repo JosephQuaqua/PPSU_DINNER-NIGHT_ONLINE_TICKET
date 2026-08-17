@@ -83,9 +83,49 @@ export const coupleBookingSchema = z.object({
     .regex(ppsuEmailRegex, 'Use a PPSU email (name@ppsu.ac.in)'),
 });
 
-export const paymentProofSchema = z.object({
-  transaction_reference: z.string().min(3, 'Enter a transaction reference'),
-});
+export const paymentProofSchema = z
+  .object({
+    payment_method: z.enum(['upi', 'cash']),
+
+    transaction_reference: z.string().optional(),
+
+    cash_amount: z.number().optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.payment_method === 'upi') {
+      if (!data.transaction_reference?.trim()) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['transaction_reference'],
+          message:
+            'Transaction reference is required for UPI payment',
+        });
+      } else if (
+        data.transaction_reference.trim().length < 3
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['transaction_reference'],
+          message:
+            'Enter a valid transaction reference',
+        });
+      }
+    }
+
+    if (data.payment_method === 'cash') {
+      if (
+        data.cash_amount === undefined ||
+        Number.isNaN(data.cash_amount) ||
+        data.cash_amount <= 0
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['cash_amount'],
+          message: 'Enter the cash amount',
+        });
+      }
+    }
+  });
 
 export const eventFormSchema = z.object({
   title: z.string().min(3, 'Title must be at least 3 characters'),

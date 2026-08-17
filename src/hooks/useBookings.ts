@@ -156,32 +156,42 @@ export function useSubmitPaymentProof() {
       bookingId,
       userId,
       amount,
+      paymentMethod,
       transactionReference,
       proofUrl,
     }: {
       bookingId: string;
       userId: string;
       amount: number;
-      transactionReference: string;
-      proofUrl: string;
+      paymentMethod: 'upi' | 'cash';
+      transactionReference?: string | null;
+      proofUrl?: string | null;
     }) => {
       /*
        * Payment does NOT exist when the booking is first created.
-       * It is created only when the student actually submits payment.
+       * It is created only when the student submits a payment.
        */
-      const { data: payment, error: paymentError } = await supabase
-        .from('payments')
-        .insert({
-          booking_id: bookingId,
-          user_id: userId,
-          amount,
-          payment_method: 'upi',
-          transaction_reference: transactionReference,
-          proof_url: proofUrl,
-          status: 'submitted',
-        })
-        .select()
-        .single();
+
+      const { data: payment, error: paymentError } =
+        await supabase
+          .from('payments')
+          .insert({
+            booking_id: bookingId,
+            user_id: userId,
+            amount,
+            payment_method: paymentMethod,
+            transaction_reference:
+              paymentMethod === 'upi'
+                ? transactionReference || null
+                : null,
+            proof_url:
+              paymentMethod === 'upi'
+                ? proofUrl || null
+                : null,
+            status: 'submitted',
+          })
+          .select()
+          .single();
 
       if (paymentError) {
         throw paymentError;
@@ -191,14 +201,16 @@ export function useSubmitPaymentProof() {
        * Only after the payment submission succeeds,
        * move the booking into payment review.
        */
-      const { error: bookingError } = await supabase
-        .from('bookings')
-        .update({
-          status: 'payment_submitted',
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', bookingId)
-        .eq('user_id', userId);
+      const { error: bookingError } =
+        await supabase
+          .from('bookings')
+          .update({
+            status: 'payment_submitted',
+            updated_at:
+              new Date().toISOString(),
+          })
+          .eq('id', bookingId)
+          .eq('user_id', userId);
 
       if (bookingError) {
         throw bookingError;

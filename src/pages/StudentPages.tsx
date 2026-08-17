@@ -874,11 +874,18 @@ export function PaymentPage() {
 
   const { user } = useAuth();
 
-  const submit =
-    useSubmitPaymentProof();
+  const submit = useSubmitPaymentProof();
+
+  const [paymentMethod, setPaymentMethod] =
+    useState<'upi' | 'cash'>('upi');
 
   const [file, setFile] =
     useState<File | null>(null);
+
+    
+
+  const [cashAmount, setCashAmount] =
+    useState('');
 
   const [message, setMessage] =
     useState('');
@@ -903,9 +910,7 @@ export function PaymentPage() {
 
         const { data, error } =
           await supabase
-            .rpc(
-              'get_payment_settings',
-            )
+            .rpc('get_payment_settings')
             .maybeSingle();
 
         if (error) {
@@ -918,12 +923,8 @@ export function PaymentPage() {
         } else {
           setPlatformSettings(
             data as {
-              upi_id:
-                | string
-                | null;
-              upi_qr_url:
-                | string
-                | null;
+              upi_id: string | null;
+              upi_qr_url: string | null;
             } | null,
           );
         }
@@ -935,11 +936,16 @@ export function PaymentPage() {
   }, []);
 
   const form =
-    useForm<PaymentProofValues>({
-      resolver: zodResolver(
-        paymentProofSchema,
-      ),
-    });
+  useForm<PaymentProofValues>({
+    resolver: zodResolver(
+      paymentProofSchema,
+    ),
+    defaultValues: {
+      payment_method: 'upi',
+      transaction_reference: '',
+      cash_amount: undefined,
+    },
+  });
 
   if (isLoading) {
     return (
@@ -949,10 +955,7 @@ export function PaymentPage() {
     );
   }
 
-  if (
-    !booking ||
-    !booking.events
-  ) {
+  if (!booking || !booking.events) {
     return (
       <DashboardShell title="Booking not found">
         <EmptyState
@@ -966,45 +969,129 @@ export function PaymentPage() {
   const event = booking.events;
 
   const submitProof = async (
-    values: PaymentProofValues,
-  ) => {
-    if (!file) {
-      setMessage(
-        'Please choose your payment screenshot first.',
-      );
+  values: PaymentProofValues,
+) => {
+  console.log('PAYMENT FORM VALUES:', values);
+  console.log('PAYMENT METHOD STATE:', paymentMethod);
+  console.log('CASH AMOUNT STATE:', cashAmount);
 
-      return;
+  setMessage('');
+
+    /*
+     * ============================
+     * UPI VALIDATION
+     * ============================
+     */
+    if (paymentMethod === 'upi') {
+      if (!values.transaction_reference?.trim()) {
+        setMessage(
+          'Please enter your UPI transaction ID.',
+        );
+
+        return;
+      }
+
+      if (!file) {
+        setMessage(
+          'Please upload your payment screenshot.',
+        );
+
+        return;
+      }
     }
 
-    const path =
-      await uploadPaymentProof(
-        file,
-        booking.id,
-      );
+    /*
+     * ============================
+     * CASH VALIDATION
+     * ============================
+     */
+    if (paymentMethod === 'cash') {
+      const parsedAmount =
+  Number(values.cash_amount);
 
-    if (!path) {
-      setMessage(
-        'We could not upload that screenshot. Please try again.',
-      );
+      if (
+       values.cash_amount === undefined ||
+        Number.isNaN(parsedAmount) ||
+        parsedAmount <= 0
+      ) {
+        setMessage(
+          'Please enter the amount you paid in cash.',
+        );
 
-      return;
+        return;
+      }
+
+      if (
+        parsedAmount >
+        Number(booking.total_amount)
+      ) {
+        setMessage(
+          'Cash amount cannot be greater than the booking amount.',
+        );
+
+        return;
+      }
     }
 
     try {
+      let proofUrl:
+        | string
+        | null = null;
+
+      /*
+       * Upload screenshot only for UPI.
+       */
+      if (
+        paymentMethod === 'upi' &&
+        file
+      ) {
+        proofUrl =
+          await uploadPaymentProof(
+            file,
+            booking.id,
+          );
+
+        if (!proofUrl) {
+          setMessage(
+            'We could not upload that screenshot. Please try again.',
+          );
+
+          return;
+        }
+      }
+
+      /*
+       * Cash uses the amount entered by
+       * the student.
+       *
+       * UPI uses the booking total.
+       */
+      const paymentAmount =
+        paymentMethod === 'cash'
+          ? Number(cashAmount)
+          : Number(booking.total_amount);
+
       await submit.mutateAsync({
         bookingId: booking.id,
         userId:
           user?.id ||
           booking.user_id,
-        amount:
-          booking.total_amount,
+        amount: paymentAmount,
+        paymentMethod,
         transactionReference:
-          values.transaction_reference,
-        proofUrl: path,
+          paymentMethod === 'upi'
+            ? values.transaction_reference
+            : null,
+        proofUrl:
+          paymentMethod === 'upi'
+            ? proofUrl
+            : null,
       });
 
       setMessage(
-        'Payment submitted successfully. Your booking is waiting for admin verification.',
+        paymentMethod === 'cash'
+          ? 'Cash payment submitted successfully. Your booking is waiting for admin verification.'
+          : 'UPI payment submitted successfully. Your booking is waiting for admin verification.',
       );
     } catch (error) {
       console.error(
@@ -1013,7 +1100,7 @@ export function PaymentPage() {
       );
 
       setMessage(
-        'Unable to submit payment proof. Please try again.',
+        'Unable to submit payment. Please try again.',
       );
     }
   };
@@ -1032,7 +1119,7 @@ export function PaymentPage() {
               </p>
 
               <h2 className="mt-3 font-display text-4xl text-navy-950">
-                Pay securely via UPI.
+                Complete your payment.
               </h2>
             </div>
 
@@ -1053,60 +1140,200 @@ export function PaymentPage() {
             </p>
 
             <p className="mt-2 text-sm text-muted">
-              Booking{' '}
-              {booking.booking_number}
+              Booking {booking.booking_number}
             </p>
           </div>
+
+          {/* ==========================================
+              PAYMENT METHOD
+          ========================================== */}
 
           <div className="mt-8">
             <p className="text-sm font-bold text-navy-950">
-              Payment instructions
+              Select payment method
             </p>
 
-            <p className="mt-2 text-sm leading-6 text-muted">
-              Pay the exact amount using
-              the UPI ID below, then upload
-              your payment screenshot for
-              manual verification.
-            </p>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              {/* UPI */}
+              <button
+                type="button"
+                onClick={() => {
+  setPaymentMethod('upi');
+  form.setValue('payment_method', 'upi');
+  form.setValue('cash_amount', undefined);
+  setCashAmount('');
+  setMessage('');
+}}
+                className={`rounded-2xl border p-5 text-left transition ${
+                  paymentMethod === 'upi'
+                    ? 'border-gold-400 bg-gold-50'
+                    : 'border-navy-950/10 bg-white hover:border-gold-300'
+                }`}
+              >
+                <CreditCard
+                  size={21}
+                  className="text-gold-500"
+                />
 
-            <div className="mt-5 rounded-xl border border-gold-400/30 bg-gold-50 p-5">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted">
-                  UPI ID
-                </span>
-
-                <strong className="text-sm text-navy-950">
-                  {settingsLoading
-                    ? 'Loading…'
-                    : platformSettings?.upi_id ||
-                      'UPI ID not configured'}
+                <strong className="mt-4 block text-sm text-navy-950">
+                  UPI Payment
                 </strong>
-              </div>
 
-              {platformSettings?.upi_qr_url && (
-                <div className="mt-6 flex justify-center border-t border-gold-400/20 pt-6">
-                  <div className="rounded-2xl bg-white p-4 shadow-sm">
-                    <img
-                      src={
-                        platformSettings.upi_qr_url
-                      }
-                      alt="UPI payment QR code"
-                      className="h-56 w-56 object-contain"
-                    />
-                  </div>
-                </div>
-              )}
+                <span className="mt-1 block text-xs leading-5 text-muted">
+                  Pay using UPI and upload your
+                  transaction proof.
+                </span>
+              </button>
 
-              {!settingsLoading &&
-                !platformSettings?.upi_qr_url && (
-                  <p className="mt-4 text-center text-xs text-muted">
-                    UPI QR code is not currently
-                    configured.
-                  </p>
-                )}
+              {/* CASH */}
+              <button
+                type="button"
+               onClick={() => {
+  setPaymentMethod('cash');
+  form.setValue('payment_method', 'cash');
+  form.setValue('transaction_reference', '');
+  form.setValue('cash_amount', undefined);
+  setMessage('');
+}}
+                className={`rounded-2xl border p-5 text-left transition ${
+                  paymentMethod === 'cash'
+                    ? 'border-gold-400 bg-gold-50'
+                    : 'border-navy-950/10 bg-white hover:border-gold-300'
+                }`}
+              >
+                <CreditCard
+                  size={21}
+                  className="text-gold-500"
+                />
+
+                <strong className="mt-4 block text-sm text-navy-950">
+                  Cash Payment
+                </strong>
+
+                <span className="mt-1 block text-xs leading-5 text-muted">
+                  Pay cash and enter the amount
+                  handed over.
+                </span>
+              </button>
             </div>
           </div>
+
+          {/* ==========================================
+              UPI INSTRUCTIONS
+          ========================================== */}
+
+          {paymentMethod === 'upi' && (
+            <div className="mt-8">
+              <p className="text-sm font-bold text-navy-950">
+                UPI payment instructions
+              </p>
+
+              <p className="mt-2 text-sm leading-6 text-muted">
+                Pay the exact booking amount using
+                the UPI ID below, then enter your
+                transaction ID and upload your
+                payment screenshot.
+              </p>
+
+              <div className="mt-5 rounded-xl border border-gold-400/30 bg-gold-50 p-5">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted">
+                    UPI ID
+                  </span>
+
+                  <strong className="text-sm text-navy-950">
+                    {settingsLoading
+                      ? 'Loading…'
+                      : platformSettings?.upi_id ||
+                        'UPI ID not configured'}
+                  </strong>
+                </div>
+
+                {platformSettings?.upi_qr_url && (
+                  <div className="mt-6 flex justify-center border-t border-gold-400/20 pt-6">
+                    <div className="rounded-2xl bg-white p-4 shadow-sm">
+                      <img
+                        src={
+                          platformSettings.upi_qr_url
+                        }
+                        alt="UPI payment QR code"
+                        className="h-56 w-56 object-contain"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {!settingsLoading &&
+                  !platformSettings?.upi_qr_url && (
+                    <p className="mt-4 text-center text-xs text-muted">
+                      UPI QR code is not currently
+                      configured.
+                    </p>
+                  )}
+              </div>
+            </div>
+          )}
+
+          {/* ==========================================
+              CASH INSTRUCTIONS
+          ========================================== */}
+
+          {paymentMethod === 'cash' && (
+            <div className="mt-8 rounded-xl border border-gold-400/30 bg-gold-50 p-5">
+              <p className="text-sm font-bold text-navy-950">
+                Cash payment
+              </p>
+
+              <p className="mt-2 text-sm leading-6 text-muted">
+                Enter the amount you have paid in
+                cash. Your payment will remain
+                pending until an administrator
+                verifies the cash payment.
+              </p>
+
+              <div className="mt-5">
+                <label className="block">
+                  <span className="mb-2 block text-sm font-semibold text-navy-950">
+                    Amount paid
+                    <span className="ml-1 text-red-600">
+                      *
+                    </span>
+                  </span>
+
+                  <input
+  type="number"
+  min="0"
+  max={booking.total_amount}
+  step="0.01"
+  className="input-field"
+  placeholder="Enter cash amount"
+  {...form.register('cash_amount', {
+    valueAsNumber: true,
+  })}
+/>
+                </label>
+
+                {form.formState.errors.cash_amount && (
+  <span className="mt-1.5 block text-xs text-red-600">
+    {form.formState.errors.cash_amount.message}
+  </span>
+)}
+
+
+
+                <p className="mt-2 text-xs text-muted">
+                  Booking amount:{' '}
+                  {formatCurrency(
+                    booking.total_amount,
+                  )}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* ==========================================
+              SUBMISSION FORM
+          ========================================== */}
 
           {message ? (
             <div className="mt-8 flex items-start gap-3 rounded-xl bg-emerald-50 p-5 text-sm leading-6 text-emerald-800">
@@ -1120,84 +1347,98 @@ export function PaymentPage() {
               )}
               className="mt-10 space-y-5"
             >
-              <label className="block">
-                <span className="mb-2 block text-sm font-semibold text-navy-950">
-                  Transaction reference
-                </span>
+              {/* UPI FIELDS */}
+              {paymentMethod === 'upi' && (
+                <>
+                  <label className="block">
+                    <span className="mb-2 block text-sm font-semibold text-navy-950">
+                      Transaction reference
+                      <span className="ml-1 text-red-600">
+                        *
+                      </span>
+                    </span>
 
-                <input
-                  className="input-field"
-                  placeholder="Enter UPI transaction ID"
-                  {...form.register(
-                    'transaction_reference',
-                  )}
-                />
+                    <input
+                      className="input-field"
+                      placeholder="Enter UPI transaction ID"
+                      {...form.register(
+                        'transaction_reference',
+                      )}
+                    />
 
-                {form.formState.errors
-                  .transaction_reference && (
-                  <span className="mt-1.5 block text-xs text-red-600">
-                    {
-                      form.formState.errors
-                        .transaction_reference
-                        .message
-                    }
-                  </span>
-                )}
-              </label>
+                    {form.formState.errors
+                      .transaction_reference && (
+                      <span className="mt-1.5 block text-xs text-red-600">
+                        {
+                          form.formState.errors
+                            .transaction_reference
+                            .message
+                        }
+                      </span>
+                    )}
+                  </label>
 
-             <label className="block cursor-pointer">
-  <span className="mb-2 block text-sm font-semibold text-navy-950">
-    Payment screenshot <span className="text-red-600">*</span>
-  </span>
+                  <label className="block cursor-pointer">
+                    <span className="mb-2 block text-sm font-semibold text-navy-950">
+                      Payment screenshot
+                      <span className="ml-1 text-red-600">
+                        *
+                      </span>
+                    </span>
 
-  <div
-    className={`flex items-center gap-3 rounded-xl border border-dashed bg-ivory px-4 py-5 text-sm transition ${
-      file
-        ? 'border-emerald-400 bg-emerald-50'
-        : 'border-navy-950/20 hover:border-gold-400'
-    }`}
-  >
-    <Upload
-      size={19}
-      className={
-        file
-          ? 'text-emerald-600'
-          : 'text-gold-500'
-      }
-    />
+                    <div
+                      className={`flex items-center gap-3 rounded-xl border border-dashed bg-ivory px-4 py-5 text-sm transition ${
+                        file
+                          ? 'border-emerald-400 bg-emerald-50'
+                          : 'border-navy-950/20 hover:border-gold-400'
+                      }`}
+                    >
+                      <Upload
+                        size={19}
+                        className={
+                          file
+                            ? 'text-emerald-600'
+                            : 'text-gold-500'
+                        }
+                      />
 
-    <span className="flex-1">
-      {file
-        ? file.name
-        : 'Upload payment screenshot'}
-    </span>
+                      <span className="flex-1">
+                        {file
+                          ? file.name
+                          : 'Upload payment screenshot'}
+                      </span>
 
-    <input
-      className="sr-only"
-      type="file"
-      accept="image/jpeg,image/png,image/webp"
-      required
-      onChange={(e) => {
-        const selectedFile =
-          e.target.files?.[0] || null;
+                      <input
+                        className="sr-only"
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        required
+                        onChange={(e) => {
+                          const selectedFile =
+                            e.target.files?.[0] ||
+                            null;
 
-        setFile(selectedFile);
-      }}
-    />
-  </div>
+                          setFile(
+                            selectedFile,
+                          );
+                        }}
+                      />
+                    </div>
 
-  {!file && (
-    <span className="mt-1.5 block text-xs text-muted">
-      Payment screenshot is required.
-    </span>
-  )}
+                    {!file && (
+                      <span className="mt-1.5 block text-xs text-muted">
+                        Payment screenshot is required.
+                      </span>
+                    )}
 
-  {file && (
-    <span className="mt-1.5 block text-xs text-emerald-700">
-      Payment screenshot selected.
-    </span>
-  )}
-</label>
+                    {file && (
+                      <span className="mt-1.5 block text-xs text-emerald-700">
+                        Payment screenshot selected.
+                      </span>
+                    )}
+                  </label>
+                </>
+              )}
 
               <button
                 type="submit"
@@ -1208,13 +1449,19 @@ export function PaymentPage() {
               >
                 {submit.isPending
                   ? 'Submitting…'
-                  : 'Submit payment proof'}
+                  : paymentMethod === 'cash'
+                    ? 'Submit cash payment'
+                    : 'Submit UPI payment proof'}
 
                 <ArrowRight size={16} />
               </button>
             </form>
           )}
         </div>
+
+        {/* ==========================================
+            BOOKING SIDEBAR
+        ========================================== */}
 
         <aside className="h-fit rounded-[24px] bg-navy-950 p-7 text-white lg:sticky lg:top-28">
           <p className="section-label text-gold-200">
@@ -1239,6 +1486,31 @@ export function PaymentPage() {
 
               <strong className="text-white">
                 {booking.attendee_count}
+              </strong>
+            </p>
+
+            <p className="flex justify-between">
+              <span>Payment method</span>
+
+              <strong className="text-gold-200">
+                {paymentMethod === 'upi'
+                  ? 'UPI'
+                  : 'Cash'}
+              </strong>
+            </p>
+
+            <p className="flex justify-between">
+              <span>Amount</span>
+
+              <strong className="text-white">
+                {paymentMethod === 'cash' &&
+                cashAmount
+                  ? formatCurrency(
+                      Number(cashAmount),
+                    )
+                  : formatCurrency(
+                      booking.total_amount,
+                    )}
               </strong>
             </p>
 
