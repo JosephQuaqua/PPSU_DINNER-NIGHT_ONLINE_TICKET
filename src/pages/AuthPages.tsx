@@ -424,9 +424,7 @@ export function SignUpPage() {
 
 
   const redirectUrl =
-  window.location.hostname.includes("tickets.ppsuinternationstudentsleadership.site")
-    ? "https://ppsu-dinner-night-online-ticket.vercel.app/sign-in"
-    : `${window.location.origin}/sign-in`;
+  "https://ppsu-dinner-night-online-ticket.vercel.app/sign-in";
 
 const {
   error,
@@ -436,6 +434,7 @@ const {
 
   options: {
     emailRedirectTo: redirectUrl,
+
     data: {
       full_name: values.full_name,
       student_id: values.student_id,
