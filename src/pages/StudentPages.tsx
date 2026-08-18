@@ -1900,7 +1900,7 @@ const isCoupleTicket =
               cacheBust: true,
               backgroundColor:
                 '#FFFFFF',
-              skipFonts: false,
+              skipFonts: true,
               width: Math.round(
                 rect.width,
               ),
@@ -1995,7 +1995,7 @@ const isCoupleTicket =
               cacheBust: true,
               backgroundColor:
                 '#FFFFFF',
-              skipFonts: false,
+             skipFonts: true,
             },
           );
 

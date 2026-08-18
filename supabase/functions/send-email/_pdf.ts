@@ -1,9 +1,11 @@
 // Minimal PDF generator for PPSU event tickets
-// Produces a single-page PDF with event details and a QR placeholder
-// Uses raw PDF syntax (no external deps) to keep the edge function lightweight
+// Generates a valid single-page PDF without external dependencies.
 
 function escapePdfText(s: string): string {
-  return s.replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
+  return String(s)
+    .replace(/\\/g, "\\\\")
+    .replace(/\(/g, "\\(")
+    .replace(/\)/g, "\\)");
 }
 
 export interface TicketPdfData {
@@ -18,8 +20,12 @@ export interface TicketPdfData {
   qrToken: string;
 }
 
-export function generateTicketPdf(data: TicketPdfData): Uint8Array {
+export function generateTicketPdf(
+  data: TicketPdfData,
+): Uint8Array {
+
   const lines: string[] = [];
+
   const navy = "0.027 0.102 0.169";
   const gold = "0.788 0.635 0.153";
   const ivory = "0.973 0.961 0.941";
@@ -28,102 +34,282 @@ export function generateTicketPdf(data: TicketPdfData): Uint8Array {
 
   let y = 780;
 
-  // Header band (navy)
-  lines.push(`0.027 0.102 0.169 rg`);
-  lines.push(`0 760 595 80 re f`);
-  lines.push(`BT 0.788 0.635 0.153 rg /F2 9 Tf 40 ${y} Tm (PPSU EVENTS) Tj ET`);
-  y -= 16;
-  lines.push(`BT 1 1 1 rg /F1 7 Tf 40 ${y} Tm (Experience more. Connect more. Celebrate more.) Tj ET`);
-  y -= 40;
 
-  // Title
-  lines.push(`BT ${navy} rg /F1 20 Tf 40 ${y} Tm (${escapePdfText(data.eventTitle)}) Tj ET`);
-  y -= 28;
+  // Header
+  lines.push(`0.027 0.102 0.169 rg`);
+  lines.push(`0 740 595 100 re f`);
+
+  lines.push(
+    `BT ${gold} rg /F2 12 Tf 40 ${y} Tm (PPSU EVENTS) Tj ET`
+  );
+
+  y -= 25;
+
+  lines.push(
+    `BT 1 1 1 rg /F1 9 Tf 40 ${y} Tm (Digital Event Ticket) Tj ET`
+  );
+
+  y -= 55;
+
+
+  // Event title
+  lines.push(
+    `BT ${navy} rg /F2 20 Tf 40 ${y} Tm (${escapePdfText(
+      data.eventTitle,
+    )}) Tj ET`,
+  );
+
+  y -= 35;
+
 
   // Ticket number
-  lines.push(`BT ${gold} rg /F2 9 Tf 40 ${y} Tm (TICKET) Tj ET`);
-  y -= 14;
-  lines.push(`BT ${navy} rg /F2 14 Tf 40 ${y} Tm (${escapePdfText(data.ticketNumber)}) Tj ET`);
-  y -= 28;
+  lines.push(
+    `BT ${gold} rg /F2 10 Tf 40 ${y} Tm (TICKET NUMBER) Tj ET`,
+  );
 
-  // Info box background
-  lines.push(`${ivory} rg 40 ${y - 110} 515 120 re f`);
-  y -= 20;
+  y -= 18;
+
+  lines.push(
+    `BT ${navy} rg /F2 16 Tf 40 ${y} Tm (${escapePdfText(
+      data.ticketNumber,
+    )}) Tj ET`,
+  );
+
+  y -= 45;
+
+
+  // Info box
+  lines.push(
+    `${ivory} rg 40 ${y - 160} 515 170 re f`,
+  );
+
 
   const rows: [string, string][] = [
-    ["Attendee", data.attendeeName],
-    ["Student ID", data.studentId],
-    ["Date", data.eventDate],
-    ["Time", data.eventTime],
-    ["Venue", data.venue],
-    ["Booking", data.bookingNumber],
+    ["ATTENDEE", data.attendeeName],
+    ["STUDENT ID", data.studentId],
+    ["DATE", data.eventDate],
+    ["TIME", data.eventTime],
+    ["VENUE", data.venue],
+    ["BOOKING", data.bookingNumber],
   ];
+
+
+  let rowY = y - 25;
+
 
   for (const [label, value] of rows) {
-    lines.push(`BT ${muted} rg /F2 8 Tf 55 ${y} Tm (${escapePdfText(label.toUpperCase())}) Tj ET`);
-    lines.push(`BT ${dark} rg /F1 11 Tf 180 ${y} Tm (${escapePdfText(value)}) Tj ET`);
-    y -= 16;
+
+    lines.push(
+      `BT ${muted} rg /F2 8 Tf 60 ${rowY} Tm (${escapePdfText(
+        label,
+      )}) Tj ET`,
+    );
+
+
+    lines.push(
+      `BT ${dark} rg /F1 11 Tf 190 ${rowY} Tm (${escapePdfText(
+        value,
+      )}) Tj ET`,
+    );
+
+
+    rowY -= 22;
   }
 
-  y -= 10;
-  lines.push(`BT ${muted} rg /F2 8 Tf 55 ${y} Tm (QR TOKEN) Tj ET`);
-  lines.push(`BT ${dark} rg /F1 9 Tf 180 ${y} Tm (${escapePdfText(data.qrToken)}) Tj ET`);
-  y -= 24;
+
+  rowY -= 10;
+
+
+  // QR token
+  lines.push(
+    `BT ${muted} rg /F2 8 Tf 60 ${rowY} Tm (QR TOKEN) Tj ET`,
+  );
+
+
+  lines.push(
+    `BT ${dark} rg /F1 8 Tf 190 ${rowY} Tm (${escapePdfText(
+      data.qrToken,
+    )}) Tj ET`,
+  );
+
 
   // Footer
-  lines.push(`BT ${muted} rg /F2 7 Tf 40 40 Tm (Present this ticket at the entry gate. This ticket is valid only for the named attendee.) Tj ET`);
-  lines.push(`BT ${muted} rg /F2 7 Tf 40 28 Tm (PPSU Events - P. P. Savani University, Surat, Gujarat) Tj ET`);
 
-  // Build PDF
-  const content = lines.join("\n");
+  lines.push(
+    `BT ${muted} rg /F1 8 Tf 40 50 Tm (Present this ticket at the entry gate.) Tj ET`,
+  );
 
-  const header = `%PDF-1.4\n`;
-  const fontObjs = [
-    `1 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n`,
-    `2 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>\nendobj\n`,
-  ];
+
+  lines.push(
+    `BT ${muted} rg /F1 8 Tf 40 35 Tm (PPSU Events - P. P. Savani University) Tj ET`,
+  );
+
+
+
+  const content =
+    lines.join("\n");
+
+
+  const contentBytes =
+    new TextEncoder().encode(content);
+
+
+
+  const header =
+    "%PDF-1.4\n";
+
+
 
   const objects: string[] = [];
-  objects.push(`<< /Length ${content.length} >>\nstream\n${content}\nendstream\n`);
 
-  const pdfParts: string[] = [header];
 
-  // Font objects
-  pdfParts.push(fontObjs[0]);
-  pdfParts.push(fontObjs[1]);
 
-  // Content stream object (obj 3)
-  const streamObj = `3 0 obj\n<< /Length ${content.length} >>\nstream\n${content}\nendstream\nendobj\n`;
-  pdfParts.push(streamObj);
+  objects.push(
+`1 0 obj
+<<
+/Type /Font
+/Subtype /Type1
+/BaseFont /Helvetica
+>>
+endobj
+`,
+  );
 
-  // Page object (obj 4)
-  const pageObj = `4 0 obj\n<< /Type /Page /Parent 5 0 R /MediaBox [0 0 595 842] /Contents 3 0 R /Resources << /Font << /F1 1 0 R /F2 2 0 R >> >> >>\nendobj\n`;
-  pdfParts.push(pageObj);
 
-  // Pages object (obj 5)
-  const pagesObj = `5 0 obj\n<< /Type /Pages /Kids [4 0 R] /Count 1 >>\nendobj\n`;
-  pdfParts.push(pagesObj);
+  objects.push(
+`2 0 obj
+<<
+/Type /Font
+/Subtype /Type1
+/BaseFont /Helvetica-Bold
+>>
+endobj
+`,
+  );
 
-  // Catalog (obj 6)
-  const catalogObj = `6 0 obj\n<< /Type /Catalog /Pages 5 0 R >>\nendobj\n`;
-  pdfParts.push(catalogObj);
 
-  // Build xref
-  let offset = 0;
-  const offsets: number[] = [];
-  let body = "";
-  for (const part of pdfParts) {
-    offsets.push(header.length + body.length);
-    body += part;
+
+  const streamObj =
+`3 0 obj
+<<
+/Length ${contentBytes.length}
+>>
+stream
+${content}
+endstream
+endobj
+`;
+
+  objects.push(streamObj);
+
+
+
+  objects.push(
+`4 0 obj
+<<
+/Type /Page
+/Parent 5 0 R
+/MediaBox [0 0 595 842]
+/Contents 3 0 R
+/Resources <<
+/Font <<
+/F1 1 0 R
+/F2 2 0 R
+>>
+>>
+>>
+endobj
+`,
+  );
+
+
+
+  objects.push(
+`5 0 obj
+<<
+/Type /Pages
+/Kids [4 0 R]
+/Count 1
+>>
+endobj
+`,
+  );
+
+
+
+  objects.push(
+`6 0 obj
+<<
+/Type /Catalog
+/Pages 5 0 R
+>>
+endobj
+`,
+  );
+
+
+
+  let pdf =
+    header;
+
+
+
+  const offsets:number[] = [];
+
+
+
+  for (
+    const obj of objects
+  ) {
+
+    offsets.push(
+      pdf.length,
+    );
+
+    pdf += obj;
+
   }
 
-  const xrefStart = header.length + body.length;
-  let xref = `xref\n0 7\n0000000000 65535 f \n`;
-  for (let i = 0; i < offsets.length; i++) {
-    xref += `${String(offsets[i]).padStart(10, "0")} 00000 n \n`;
-  }
-  xref += `trailer\n<< /Size 7 /Root 6 0 R >>\nstartxref\n${xrefStart}\n%%EOF`;
 
-  const fullPdf = header + body + xref;
-  return new TextEncoder().encode(fullPdf);
+
+  const xrefPosition =
+    pdf.length;
+
+
+
+  pdf +=
+`xref
+0 7
+0000000000 65535 f 
+`;
+
+
+
+  for (
+    const offset of offsets
+  ) {
+
+    pdf +=
+`${String(offset).padStart(10,"0")} 00000 n 
+`;
+
+  }
+
+
+
+  pdf +=
+`trailer
+<<
+/Size 7
+/Root 6 0 R
+>>
+startxref
+${xrefPosition}
+%%EOF`;
+
+
+
+  return new TextEncoder()
+    .encode(pdf);
+
 }
