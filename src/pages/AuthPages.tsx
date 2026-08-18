@@ -423,43 +423,48 @@ export function SignUpPage() {
     console.log('SIGN UP VALUES:', values);
 
 
-    const {
-      error,
-    } = await supabase.auth.signUp({
-      email: values.email,
-      password: values.password,
+  const redirectUrl =
+  window.location.hostname.includes("tickets.ppsuinternationstudentsleadership.site")
+    ? "https://ppsu-dinner-night-online-ticket.vercel.app/sign-in"
+    : `${window.location.origin}/sign-in`;
 
-      options: {
-        data: {
-          full_name: values.full_name,
-          student_id: values.student_id,
-        },
-      },
-    });
+const {
+  error,
+} = await supabase.auth.signUp({
+  email: values.email,
+  password: values.password,
+
+  options: {
+    emailRedirectTo: redirectUrl,
+    data: {
+      full_name: values.full_name,
+      student_id: values.student_id,
+    },
+  },
+});
 
 
     if (error) {
-      console.error('SIGN UP ERROR:', error);
+  console.error('SIGN UP ERROR:', error);
 
-      if (
-        error.message
-          .toLowerCase()
-          .includes('already')
-      ) {
-        setServerError(
-          'An account with this email already exists.'
-        );
-      } else {
-        setServerError(error.message);
-      }
+  if (
+    error.message
+      .toLowerCase()
+      .includes('already')
+  ) {
+    setServerError(
+      'An account with this email already exists.'
+    );
+  } else {
+    setServerError(error.message);
+  }
 
-      return;
-    }
+  return;
+}
 
-
-    navigate('/dashboard', {
-      replace: true,
-    });
+setServerError(
+  'Account created successfully. Please check your email and verify your account before signing in.'
+);
   };
 
 
