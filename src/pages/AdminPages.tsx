@@ -321,10 +321,31 @@ useEffect(() => {
       ? await supabase.rpc('approve_payment', { p_payment_id: payment.id, p_admin_id: user.id, p_admin_note: note || null })
       : await supabase.rpc('reject_payment', { p_payment_id: payment.id, p_admin_id: user.id, p_rejection_reason: note });
     setBusy(false);
-    if (result.error) { setError('Unable to process. Please try again.'); return; }
-    setSelected(null);
-    setNote('');
-    await client.invalidateQueries({ queryKey: ['admin-bookings'] });
+    if (result.error) { 
+  setError('Unable to process. Please try again.'); 
+  return; 
+}
+
+if (approve) {
+  const { error: emailError } =
+    await supabase.functions.invoke('send-email', {
+      body: {
+        type: 'payment_approved',
+        booking_id: selected.id,
+      },
+    });
+
+  if (emailError) {
+    console.error('PAYMENT APPROVAL EMAIL ERROR:', emailError);
+  }
+}
+
+setSelected(null);
+setNote('');
+
+await client.invalidateQueries({ 
+  queryKey: ['admin-bookings'] 
+});
   };
 
   return (

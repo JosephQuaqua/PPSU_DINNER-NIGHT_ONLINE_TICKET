@@ -282,6 +282,12 @@ for (const adminEmail of adminEmails) {
     html,
   );
 
+  console.log("[email] admin send result:", {
+  adminEmail,
+  id,
+  error,
+});
+
   await logEmail(
     bookingId,
     `booking_submitted_admin_${adminEmail}`,
