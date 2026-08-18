@@ -1,22 +1,11 @@
 // PPSU Event Ticket PDF Generator
 // Pure Deno implementation - no browser dependencies
 
-import QRCode from "https://esm.sh/qrcode@1.5.4";
-
 function escapePdfText(value: string): string {
   return String(value)
     .replace(/\\/g, "\\\\")
     .replace(/\(/g, "\\(")
     .replace(/\)/g, "\\)");
-}
-
-async function generateQrDataUrl(
-  value: string,
-): Promise<string> {
-  return await QRCode.toDataURL(value, {
-    width: 300,
-    margin: 1,
-  });
 }
 
 export interface TicketPdfData {
@@ -52,9 +41,9 @@ ET
 }
 
 
-export async function generateTicketPdf(
+export function generateTicketPdf(
   data: TicketPdfData,
-): Promise<Uint8Array> {
+): Uint8Array {
 
 
   const content: string[] = [];
