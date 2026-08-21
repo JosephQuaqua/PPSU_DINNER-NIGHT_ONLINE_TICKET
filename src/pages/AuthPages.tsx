@@ -257,12 +257,12 @@ export function SignInPage() {
         {/* EMAIL */}
         <label className="block">
   <span className="mb-2 block text-sm font-semibold text-navy-950">
-    PPSU email
+    Email address
   </span>
 
   <input
     type="email"
-    placeholder="you@ppsu.ac.in"
+   placeholder="you@gmail.com"
     autoComplete="email"
     className={`input-field ${
       form.formState.errors.email
@@ -501,9 +501,9 @@ setServerError(
 
 
         <Field
-          label="PPSU email"
+          label="Email address"
           type="email"
-          placeholder="you@ppsu.ac.in"
+          placeholder="you@gmail.com"
           autoComplete="email"
           {...form.register('email')}
           error={
@@ -659,9 +659,9 @@ export function ForgotPasswordPage() {
         >
 
           <Field
-            label="PPSU email"
+            label="Email address"
             type="email"
-            placeholder="you@ppsu.ac.in"
+            placeholder="you@gmail.com"
             autoComplete="email"
             {...form.register('email')}
             error={

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
-export const ppsuEmailRegex = /^[a-zA-Z0-9._%+-]+@ppsu\.ac\.in$/;
+export const ppsuEmailRegex =
+  /^[a-zA-Z0-9._%+-]+@(ppsu\.ac\.in|ppsuni\.ac\.in|gmail\.com)$/i;
 
 export const signInSchema = z.object({
   email: z.string().email('Enter a valid email address'),
@@ -11,10 +12,13 @@ export const signUpSchema = z
   .object({
     full_name: z.string().min(2, 'Enter your full name'),
     student_id: z.string().min(3, 'Enter your student ID'),
-    email: z
-      .string()
-      .email('Enter a valid PPSU email')
-      .regex(ppsuEmailRegex, 'Use your PPSU email (name@ppsu.ac.in)'),
+   email: z
+  .string()
+  .email('Enter a valid email address')
+  .regex(
+    ppsuEmailRegex,
+    'Use a PPSU, PPSUNI, or Gmail email address',
+  ),
     password: z.string().min(6, 'Password must be at least 6 characters'),
     confirmPassword: z.string(),
   })
@@ -24,19 +28,25 @@ export const signUpSchema = z
   });
 
 export const forgotPasswordSchema = z.object({
-  email: z
-    .string()
-    .email('Enter a valid PPSU email')
-    .regex(ppsuEmailRegex, 'Use your PPSU email (name@ppsu.ac.in)'),
+ email: z
+  .string()
+  .email('Enter a valid email address')
+  .regex(
+    ppsuEmailRegex,
+    'Use a PPSU, PPSUNI, or Gmail email address',
+  ),
 });
 
 export const profileSchema = z.object({
   full_name: z.string().min(2, 'Enter your full name'),
   student_id: z.string().min(3, 'Enter your student ID'),
   email: z
-    .string()
-    .email('Enter a valid PPSU email')
-    .regex(ppsuEmailRegex, 'Use your PPSU email (name@ppsu.ac.in)'),
+  .string()
+  .email('Enter a valid email address')
+  .regex(
+    ppsuEmailRegex,
+    'Use a PPSU, PPSUNI, or Gmail email address',
+  ),
   phone: z.string().optional(),
 });
 
@@ -69,18 +79,24 @@ export const coupleBookingSchema = z.object({
   full_name: z.string().min(2, 'Enter your full name'),
   student_id: z.string().min(3, 'Enter your student ID'),
   email: z
-    .string()
-    .email('Enter a valid PPSU email')
-    .regex(ppsuEmailRegex, 'Use a PPSU email (name@ppsu.ac.in)'),
+  .string()
+  .email('Enter a valid email address')
+  .regex(
+    ppsuEmailRegex,
+    'Use a PPSU, PPSUNI, or Gmail email address',
+  ),
 
   partner_name: z.string().min(2, 'Enter your partner’s full name'),
   partner_student_id: z
     .string()
     .min(3, 'Enter your partner’s student ID'),
   partner_email: z
-    .string()
-    .email('Enter a valid PPSU email')
-    .regex(ppsuEmailRegex, 'Use a PPSU email (name@ppsu.ac.in)'),
+  .string()
+  .email('Enter a valid partner email address')
+  .regex(
+    ppsuEmailRegex,
+    'Use a PPSU, PPSUNI, or Gmail email address',
+  ),
 });
 
 export const paymentProofSchema = z

@@ -728,7 +728,7 @@ const submit = async (
                 }
               />
 
-              <Field
+                          <Field
                 label="PPSU email"
                 type="email"
                 placeholder="you@ppsu.ac.in"
@@ -768,11 +768,11 @@ const submit = async (
                     }
                   />
 
-                  <Field
-                    label="Partner PPSU email"
-                    type="email"
-                    placeholder="partner@ppsu.ac.in"
-                    {...form.register('partner_email')}
+                 <Field
+  label="Partner email address"
+  type="email"
+  placeholder="partner@gmail.com"
+  {...form.register('partner_email')}
                     error={
                       form.formState.errors.partner_email?.message
                     }
